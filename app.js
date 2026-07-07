@@ -1077,6 +1077,16 @@ const EVENTS = {
   'san francisco': [
     { name: 'SF Pride', sm: 6, sd: 28, em: 6, ed: 29, desc: 'Huge Pride parade & festival' },
     { name: 'Outside Lands', sm: 8, sd: 8, em: 8, ed: 10, desc: 'Golden Gate Park music festival' } ],
+  chicago: [
+    { name: "St. Patrick's Day River Dyeing", sm: 3, sd: 15, em: 3, ed: 15, vary: true, desc: 'The Chicago River is dyed green downtown' },
+    { name: 'Lollapalooza', sm: 8, sd: 1, em: 8, ed: 4, desc: 'Huge music festival in Grant Park' },
+    { name: 'Chicago Air & Water Show', sm: 8, sd: 16, em: 8, ed: 17, desc: 'Free lakefront aerial show' },
+    { name: 'Christkindlmarket', sm: 11, sd: 21, em: 12, ed: 24, desc: 'German-style Christmas market at Daley Plaza' } ],
+  'las vegas': [
+    { name: 'Las Vegas Grand Prix (F1)', sm: 11, sd: 20, em: 11, ed: 22, desc: 'Formula 1 night race down the Strip' },
+    { name: 'EDC (Electric Daisy Carnival)', sm: 5, sd: 16, em: 5, ed: 18, vary: true, desc: 'Massive electronic-music festival' },
+    { name: 'Life is Beautiful', sm: 9, sd: 19, em: 9, ed: 21, desc: 'Downtown music, art & food festival' },
+    { name: 'NYE on the Strip', sm: 12, sd: 31, em: 12, ed: 31, desc: 'Fireworks along Las Vegas Boulevard' } ],
   sydney: [
     { name: 'Sydney Mardi Gras', sm: 2, sd: 15, em: 3, ed: 2, desc: 'Iconic LGBTQ+ parade & festival' },
     { name: 'Vivid Sydney', sm: 5, sd: 23, em: 6, ed: 14, desc: 'Festival of light, music & ideas' },
@@ -1150,13 +1160,13 @@ const relTime = (dateStr) => {
   return `${Math.round(h / 24)}d ago`;
 };
 
-// Public CORS proxies (keyless). Tried in order — the free ones are flaky, so
-// having several fallbacks greatly improves the odds one succeeds.
-const NEWS_PROXIES = [
-  (u) => `/api/news?url=${encodeURIComponent(u)}`, // same-origin server proxy (server.js) — most reliable
+// Public CORS proxies (keyless). The free ones are flaky and cache per-feed, so we
+// RACE them in parallel — the first that returns valid RSS wins, avoiding slow
+// sequential timeouts (which made cached feeds work but uncached ones "fail").
+const PUBLIC_NEWS_PROXIES = [
   (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
-  (u) => `https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(u)}`,
   (u) => `https://corsproxy.io/?url=${encodeURIComponent(u)}`,
+  (u) => `https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(u)}`,
 ];
 function parseRssItems(xmlText) {
   const doc = new DOMParser().parseFromString(xmlText, 'text/xml');
@@ -1167,22 +1177,22 @@ function parseRssItems(xmlText) {
     return { title, link: it.querySelector('link')?.textContent || '', source, date: it.querySelector('pubDate')?.textContent || '' };
   }).filter((x) => x.title);
 }
+async function fetchViaProxy(url, ms) {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), ms);
+  try {
+    const r = await fetch(url, { signal: ctl.signal });
+    if (!r.ok) throw new Error(`news ${r.status}`);
+    const items = parseRssItems(await r.text());
+    if (!items.length) throw new Error('no items');
+    return items;
+  } finally { clearTimeout(timer); }
+}
 async function fetchHeadlines(feedUrl) {
-  let lastErr;
-  for (const makeUrl of NEWS_PROXIES) {
-    const ctl = new AbortController();
-    const timer = setTimeout(() => ctl.abort(), 8000);
-    try {
-      const r = await fetch(makeUrl(feedUrl), { signal: ctl.signal });
-      if (!r.ok) throw new Error(`news ${r.status}`);
-      const items = parseRssItems(await r.text());
-      if (!items.length) throw new Error('no items');
-      return items;
-    } catch (e) {
-      lastErr = e;
-    } finally { clearTimeout(timer); }
-  }
-  throw lastErr;
+  // 1. Same-origin server proxy first (reliable when server.js is running).
+  try { return await fetchViaProxy(`/api/news?url=${encodeURIComponent(feedUrl)}`, 6000); } catch { /* fall through */ }
+  // 2. Race the public proxies — first valid RSS wins (Promise.any rejects only if all fail).
+  return Promise.any(PUBLIC_NEWS_PROXIES.map((mk) => fetchViaProxy(mk(feedUrl), 9000)));
 }
 
 function renderNews(place) {
@@ -1371,6 +1381,18 @@ const FOOD = {
     { name: 'Swan Oyster Depot', note: 'Century-old seafood counter' },
     { name: 'Tartine Bakery', note: 'Country bread & pastries' },
     { name: 'Chinatown', note: 'Dim sum & classic Cantonese' } ] },
+  chicago: { dishes: ['Deep-dish pizza', 'Italian beef', 'Chicago-style hot dog', 'Garrett popcorn', 'Jibarito'], places: [
+    { name: "Lou Malnati's", note: 'The deep-dish pizza institution' },
+    { name: "Portillo's", note: 'Italian beef & Chicago dogs' },
+    { name: "Al's Beef", note: 'Original-style Italian beef sandwiches' },
+    { name: 'Girl & the Goat', note: 'Stephanie Izard’s acclaimed small plates' },
+    { name: "Pequod's Pizza", note: 'Famous caramelized-crust pan pizza' } ] },
+  'las vegas': { dishes: ['Buffets', 'Steakhouse', 'Celebrity-chef tasting menus', 'Shrimp cocktail', '24-hour diners'], places: [
+    { name: 'Bacchanal Buffet (Caesars)', note: 'The ultimate Vegas buffet' },
+    { name: 'Lotus of Siam', note: 'Legendary northern-Thai, off-Strip' },
+    { name: "Gordon Ramsay Hell's Kitchen", note: 'Celebrity-chef dining on the Strip' },
+    { name: 'Secret Pizza (Cosmopolitan)', note: 'Hidden late-night pizza joint' },
+    { name: 'Joël Robuchon (MGM)', note: '3-Michelin-star tasting menu' } ] },
   sydney: { dishes: ['Fresh oysters', 'Barramundi', 'Flat white & brunch', 'Meat pie', 'Lamington'], places: [
     { name: 'Sydney Fish Market', note: 'Seafood platters by the water' },
     { name: 'Bourke Street Bakery', note: 'Famous sausage rolls & pastries' },
@@ -1531,6 +1553,16 @@ const TRANSPORT = {
     { ic: '🚆', type: 'BART', name: 'BART', detail: 'Direct to downtown SF ~30 min · ~$10' },
     { ic: '🚌', type: 'Bus', name: 'SamTrans', detail: 'Budget; slower' },
     { ic: '🚕', type: 'Taxi', name: 'Taxi', detail: '~$55–70 to downtown' } ] },
+  chicago: { airport: "O'Hare / Midway (ORD / MDW)", options: [
+    { ic: '🚗', type: 'Ride-hailing', name: 'Uber · Lyft', detail: '~$35–55 to the Loop · 30–50 min' },
+    { ic: '🚇', type: 'CTA train', name: 'Blue Line (O’Hare) · Orange Line (Midway)', detail: 'Direct to downtown · ~$5 · 40–45 min' },
+    { ic: '🚌', type: 'Shuttle', name: 'Airport shuttles', detail: 'Shared vans to hotels' },
+    { ic: '🚕', type: 'Taxi', name: 'Taxi', detail: '~$40–60 to downtown' } ] },
+  'las vegas': { airport: 'Harry Reid Intl (LAS)', options: [
+    { ic: '🚗', type: 'Ride-hailing', name: 'Uber · Lyft', detail: 'Level 2M pickup · ~$25–35 to the Strip · 15 min' },
+    { ic: '🚌', type: 'Bus', name: 'RTC WAX / CX', detail: 'To the Strip & downtown · ~$6 day pass' },
+    { ic: '🚕', type: 'Taxi', name: 'Metered taxi', detail: '~$25–40 to the Strip · 15–20 min' },
+    { ic: '🚈', type: 'Monorail', name: 'Las Vegas Monorail', detail: 'Runs along the Strip (not from airport) · $5–13' } ] },
   sydney: { airport: 'Kingsford Smith (SYD)', options: [
     { ic: '🚗', type: 'Ride-hailing', name: 'Uber · DiDi · Ola', detail: '~A$35–55 to CBD · 20–30 min' },
     { ic: '🚆', type: 'Train', name: 'Airport Link', detail: 'To Central ~13 min (+ station access fee)' },
@@ -2029,13 +2061,18 @@ async function updateSpotifyEmbed(place) {
   const cc = (place.cc || '').toUpperCase();
   let playlistId = SPOTIFY_COUNTRY_PLAYLIST[cc] || SPOTIFY_GLOBAL_PLAYLIST;
 
-  // Logged in → try a city-specific playlist via Search, else keep the country chart.
+  // Logged in → find a good city playlist via Search; prefer Spotify-curated
+  // ("This Is…/vibes") editorial playlists over random user ones for quality.
   if (spGet('token') && Date.now() < Number(spGet('expires'))) {
     try {
-      const res = await spApi(`search?q=${enc(place.name)}&type=playlist&limit=5${cc ? `&market=${cc}` : ''}`);
-      const hit = (res?.playlists?.items || []).find((p) => p && p.id);
+      const res = await spApi(`search?q=${enc(place.name)}&type=playlist&limit=10${cc ? `&market=${cc}` : ''}`);
+      const items = (res?.playlists?.items || []).filter((p) => p && p.id);
+      const nameHit = (re) => items.find((p) => re.test(p.name || ''));
+      const hit = items.find((p) => p.owner?.id === 'spotify')      // editorial, curated
+        || nameHit(new RegExp(`(this is|sound of|essentials|vibes).*${place.name}|${place.name}.*(vibes|essentials|hits)`, 'i'))
+        || items[0];                                                 // fallback: top result
       if (hit) playlistId = hit.id;
-    } catch { /* keep country/global */ }
+    } catch { /* keep country/global chart */ }
     if (token !== spEmbedToken) return;
   }
 

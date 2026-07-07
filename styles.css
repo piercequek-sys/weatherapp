@@ -419,6 +419,7 @@ body {
 
 /* spotify section */
 .spotify-brand { font-weight: 500; color: #1db954; font-size: 14px; }
+.spotify-now:not(:empty) { font-size: 12.5px; color: var(--muted); font-weight: 600; margin-bottom: 10px; }
 .spotify-embed { border-radius: 14px; display: block; border: none; }
 .spotify-account { margin-top: 14px; }
 .sp-loading, .sp-hint { font-size: 13px; color: var(--muted); line-height: 1.5; }

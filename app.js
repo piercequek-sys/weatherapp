@@ -1711,6 +1711,7 @@ async function loadLocation(place, { moveMap = true } = {}) {
   renderCycling(place);
   renderRapha(place);
   renderLinks(place);
+  updateSpotifyEmbed(place);
 
   try {
     const data = await fetchWeather(place.lat, place.lon);
@@ -2004,6 +2005,49 @@ const spGet = (k) => localStorage.getItem(`${SP.key}.${k}`);
 const spSet = (k, v) => localStorage.setItem(`${SP.key}.${k}`, v);
 const spDel = (k) => localStorage.removeItem(`${SP.key}.${k}`);
 const spClientId = () => spGet('clientId') || SP_DEFAULT_CLIENT_ID;
+
+// Verified Spotify "Top 50 – {Country}" chart playlists, keyed by ISO alpha-2.
+const SPOTIFY_COUNTRY_PLAYLIST = {
+  SG: '37i9dQZEVXbK4gjvS1FjPY', MY: '37i9dQZEVXbJlfUljuZExa', JP: '37i9dQZEVXbKXQ4mDTEBXq',
+  US: '37i9dQZEVXbLRQDuF5jeBp', GB: '37i9dQZEVXbLnolsZ8PSNw', ID: '37i9dQZEVXbObFQZ3JLcXt',
+  IN: '37i9dQZEVXbLZ52XmnySJg', AU: '37i9dQZEVXbJPcfkRz0wJ0', TW: '37i9dQZEVXbMnZEatlMSiu',
+  TH: '37i9dQZEVXbMnz8KIWsvf9', PH: '37i9dQZEVXbNBz9cRCSFkY', VN: '37i9dQZEVXbLdGSmz6xilI',
+  KR: '37i9dQZEVXbNxXF4SkHj9F', HK: '37i9dQZEVXbLwpL8TjsxOG', FR: '37i9dQZEVXbIPWwFssbupI',
+  DE: '37i9dQZEVXbJiZcmkrIHGU', IT: '37i9dQZEVXbIQnj7RRhdSX', ES: '37i9dQZEVXbNFJfN1Vw8d9',
+  NL: '37i9dQZEVXbKCF6dqVpDkS', CA: '37i9dQZEVXbKj23U1GF4IR', BR: '37i9dQZEVXbMXbN3EUUhlg',
+  MX: '37i9dQZEVXbO3qyFxbkOE1',
+};
+const SPOTIFY_GLOBAL_PLAYLIST = '37i9dQZEVXbMDoHDwVN2tF';
+let spEmbedToken = 0;
+
+// Point the embed at a playlist that reflects the selected place.
+async function updateSpotifyEmbed(place) {
+  const iframe = document.getElementById('spotifyEmbed');
+  if (!iframe || !place) return;
+  const token = ++spEmbedToken;
+  const label = document.getElementById('spotifyNow');
+  const cc = (place.cc || '').toUpperCase();
+  let playlistId = SPOTIFY_COUNTRY_PLAYLIST[cc] || SPOTIFY_GLOBAL_PLAYLIST;
+
+  // Logged in → try a city-specific playlist via Search, else keep the country chart.
+  if (spGet('token') && Date.now() < Number(spGet('expires'))) {
+    try {
+      const res = await spApi(`search?q=${enc(place.name)}&type=playlist&limit=5${cc ? `&market=${cc}` : ''}`);
+      const hit = (res?.playlists?.items || []).find((p) => p && p.id);
+      if (hit) playlistId = hit.id;
+    } catch { /* keep country/global */ }
+    if (token !== spEmbedToken) return;
+  }
+
+  iframe.src = `https://open.spotify.com/embed/playlist/${playlistId}?utm_source=generator`;
+  if (label) {
+    label.textContent = '';
+    try {
+      const o = await fetch(`https://open.spotify.com/oembed?url=https://open.spotify.com/playlist/${playlistId}`);
+      if (o.ok && token === spEmbedToken) { const j = await o.json(); label.textContent = `🎵 ${j.title} · picked for ${place.name}`; }
+    } catch { /* label optional */ }
+  }
+}
 let spAudio = null; // shared <audio> for 30s previews
 
 function b64url(bytes) {
@@ -2171,6 +2215,7 @@ async function renderSpotify() {
       <div class="sp-tracks-label">Your top tracks</div>
       <div class="sp-tracks">${tracks || '<div class="sp-hint">No top tracks yet — listen on Spotify and check back.</div>'}</div>`;
     if (premium) spInitPlayer(); // connect the Web Playback SDK device
+    if (state.current) updateSpotifyEmbed(state.current); // now logged in → city-specific playlist
   } catch {
     spotifyDisconnect();
     toast('Spotify session expired — reconnect');

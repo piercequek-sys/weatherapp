@@ -1996,10 +1996,14 @@ el.savePinBtn.addEventListener('click', () => {
    ============================================================ */
 const SP = { key: 'spotify', scope: 'user-read-private user-read-email user-top-read user-read-recently-played user-read-currently-playing streaming user-read-playback-state user-modify-playback-state' };
 const SP_LOGO = '<svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 100 20 10 10 0 000-20zm4.6 14.4a.62.62 0 01-.86.21c-2.35-1.44-5.3-1.76-8.79-.96a.62.62 0 11-.28-1.22c3.8-.87 7.08-.5 9.72 1.11.3.18.39.57.21.86zm1.23-2.73a.78.78 0 01-1.07.26c-2.69-1.65-6.79-2.13-9.98-1.16a.78.78 0 11-.45-1.49c3.64-1.1 8.16-.57 11.24 1.32.37.22.49.7.26 1.07zm.11-2.85C14.83 8.98 9.4 8.8 6.3 9.74a.94.94 0 11-.54-1.8c3.56-1.08 9.56-.87 13.35 1.38a.94.94 0 11-.96 1.6z"/></svg>';
+// Public PKCE Client ID (safe to ship — it's a public identifier, not a secret).
+// A user can still override it via the setup panel; stored value wins.
+const SP_DEFAULT_CLIENT_ID = '23d530c955d44e7d9a59f6f3303e5eb4';
 const spRedirectUri = () => location.origin + location.pathname;
 const spGet = (k) => localStorage.getItem(`${SP.key}.${k}`);
 const spSet = (k, v) => localStorage.setItem(`${SP.key}.${k}`, v);
 const spDel = (k) => localStorage.removeItem(`${SP.key}.${k}`);
+const spClientId = () => spGet('clientId') || SP_DEFAULT_CLIENT_ID;
 let spAudio = null; // shared <audio> for 30s previews
 
 function b64url(bytes) {
@@ -2010,7 +2014,7 @@ async function spChallenge(verifier) {
 }
 async function spotifyLogin() {
   const input = document.getElementById('spClientId');
-  const clientId = ((input?.value || '').trim()) || spGet('clientId') || '';
+  const clientId = ((input?.value || '').trim()) || spClientId();
   // Spotify Client IDs are 32 hex characters — validate before redirecting so the user
   // gets a clear message instead of Spotify's "client_id: Invalid" error page.
   if (!/^[0-9a-f]{32}$/i.test(clientId)) {
@@ -2037,7 +2041,7 @@ async function spotifyHandleRedirect() {
   history.replaceState({}, '', spRedirectUri()); // clean ?code from the URL
   try {
     const body = new URLSearchParams({
-      client_id: spGet('clientId'), grant_type: 'authorization_code', code,
+      client_id: spClientId(), grant_type: 'authorization_code', code,
       redirect_uri: spRedirectUri(), code_verifier: spGet('verifier'),
     });
     const r = await fetch('https://accounts.spotify.com/api/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body });
@@ -2049,7 +2053,7 @@ async function spotifyHandleRedirect() {
   } catch { toast('Spotify sign-in failed'); }
 }
 async function spotifyRefresh() {
-  const refresh = spGet('refresh'), clientId = spGet('clientId');
+  const refresh = spGet('refresh'), clientId = spClientId();
   if (!refresh || !clientId) return false;
   try {
     const body = new URLSearchParams({ client_id: clientId, grant_type: 'refresh_token', refresh_token: refresh });
@@ -2122,19 +2126,19 @@ async function renderSpotify() {
   const hasToken = spGet('token') && Date.now() < Number(spGet('expires'));
   if (!hasToken) {
     if (spGet('refresh') && await spotifyRefresh()) return renderSpotify();
-    const clientId = spGet('clientId') || '';
+    const clientId = spClientId();
     const validId = /^[0-9a-f]{32}$/i.test(clientId);
     el.spotifyAccount.innerHTML = `
       <div class="sp-connect">
         <div class="sp-free-note">🎧 Showing <b>Spotify Free</b> — 30-second previews. Log in for playback tied to your account (Premium plays full tracks).</div>
         <button id="spConnectBtn" class="sp-login">${SP_LOGO}<span>Log in with Spotify</span></button>
-        <details class="sp-setup" ${validId ? '' : 'open'}>
-          <summary>Set up · Client ID ${validId ? '✓' : '(required)'}</summary>
-          <p class="sp-hint">1. Create a free app in the <a href="https://developer.spotify.com/dashboard" target="_blank" rel="noopener">Spotify Dashboard</a>.
-             2. Under <b>Redirect URIs</b>, add <b>exactly</b> the URI below. 3. Copy the app's <b>Client ID</b> (32 characters — not the secret) and paste it here.</p>
+        <details class="sp-setup">
+          <summary>Setup &amp; troubleshooting</summary>
+          <p class="sp-hint">The app's Client ID is preconfigured. For login to work, that Spotify app must have <b>this exact Redirect URI</b> registered (Dashboard → Edit settings → Redirect URIs):</p>
           <div class="sp-redirect">Redirect URI · <code>${spRedirectUri()}</code></div>
+          <p class="sp-hint">Override the Client ID with your own app if you prefer:</p>
           <input id="spClientId" class="sp-input" placeholder="Spotify Client ID (32 hex characters)" value="${clientId}" spellcheck="false" autocomplete="off">
-          <p class="sp-hint sp-warn">Getting “client_id: Invalid”? The Client ID is wrong or the app doesn’t exist yet. Getting a redirect error? The Redirect URI above must match the Dashboard exactly (Spotify requires <code>127.0.0.1</code>, not <code>localhost</code>, for local http).</p>
+          <p class="sp-hint sp-warn">Getting “client_id: Invalid”? The app doesn’t exist or the ID is wrong. Getting a redirect error? The Redirect URI above must be registered in the Spotify app <b>exactly</b> (Spotify requires <code>127.0.0.1</code>, not <code>localhost</code>, for local http).</p>
         </details>
       </div>`;
     return;

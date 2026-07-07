@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>My Travel Pocket App</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app" id="app">
+    <!-- ============ SIDEBAR ============ -->
+    <aside class="sidebar glass">
+      <div class="brand">
+        <div class="brand-mark">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M17.5 19a4.5 4.5 0 0 0 0-9h-1.26A8 8 0 1 0 4 15.25" />
+            <path d="M12 12v9M8 17l4 4 4-4" />
+          </svg>
+        </div>
+        <div>
+          <h1>My Travel Pocket</h1>
+          <span class="brand-sub">Your travel companion</span>
+        </div>
+      </div>
+
+      <form class="search" id="searchForm" autocomplete="off">
+        <svg class="search-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" />
+        </svg>
+        <input type="text" id="searchInput" placeholder="Add a city…" aria-label="Search for a city" />
+        <div class="suggestions" id="suggestions" hidden></div>
+      </form>
+
+      <div class="saved-header">
+        <span>Saved cities</span>
+        <span class="saved-count" id="savedCount">0/10</span>
+      </div>
+      <div class="saved-list" id="savedList"></div>
+
+      <button class="locate-btn" id="locateBtn">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3" /><path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
+        </svg>
+        Use my location
+      </button>
+    </aside>
+
+    <!-- ============ MAIN ============ -->
+    <main class="main">
+      <section class="hero glass" id="hero">
+        <div class="hero-loading" id="heroLoading">
+          <div class="spinner"></div>
+          <p>Locating you…</p>
+        </div>
+        <div class="hero-content" id="heroContent" hidden>
+          <div class="hero-top">
+            <div class="hero-place">
+              <div class="place-name" id="placeName">—</div>
+              <div class="place-meta" id="placeMeta">—</div>
+            </div>
+            <button class="pin-badge" id="pinBadge" title="This location is pinned on the map">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z"/></svg>
+              <span id="pinBadgeText">Pinned</span>
+            </button>
+          </div>
+
+          <div class="hero-main">
+            <div class="hero-icon" id="heroIcon"></div>
+            <div class="hero-temp">
+              <span class="temp-value" id="tempValue">--</span><span class="temp-unit">°</span>
+            </div>
+          </div>
+          <div class="hero-cond" id="heroCond">—</div>
+          <div class="hero-range">
+            <span id="tempHi">H:--°</span>
+            <span class="dot">•</span>
+            <span id="tempLo">L:--°</span>
+            <span class="dot">•</span>
+            <span id="feelsLike">Feels --°</span>
+          </div>
+
+          <div class="stats" id="stats"></div>
+        </div>
+      </section>
+
+      <section class="forecast glass">
+        <div class="section-head">
+          <h2>Hourly</h2>
+          <span class="section-sub" id="hourlySub">Next 24 hours</span>
+        </div>
+        <div class="hourly" id="hourly"></div>
+      </section>
+
+      <section class="forecast glass">
+        <div class="section-head">
+          <h2>7-Day Forecast</h2>
+        </div>
+        <div class="daily" id="daily"></div>
+      </section>
+
+      <section class="forecast glass travel">
+        <div class="section-head">
+          <h2>Travel <span class="travel-country" id="travelCountry"></span></h2>
+          <span class="section-sub" id="travelSub">Based on your selected location</span>
+        </div>
+        <div class="travel-body" id="travelBody">
+          <div class="travel-loading">
+            <div class="spinner"></div>
+            <p>Loading travel info…</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="forecast glass">
+        <div class="section-head">
+          <h2>News <span class="cycling-brand">· Top headlines</span></h2>
+          <span class="section-sub">Live from Google News</span>
+        </div>
+        <div class="news-grid" id="newsBody"></div>
+      </section>
+
+      <section class="forecast glass">
+        <div class="section-head">
+          <h2>Events <span class="cycling-brand">· Festivals &amp; happenings</span></h2>
+          <span class="section-sub">Current &amp; upcoming</span>
+        </div>
+        <div class="cycling-body" id="eventsBody"></div>
+      </section>
+
+      <section class="forecast glass">
+        <div class="section-head">
+          <h2>Transportation <span class="cycling-brand">· Airport → city</span></h2>
+          <span class="section-sub">Getting into town</span>
+        </div>
+        <div class="cycling-body" id="transportBody"></div>
+      </section>
+
+      <section class="forecast glass">
+        <div class="section-head">
+          <h2>Food <span class="cycling-brand">· Where &amp; what to eat</span></h2>
+          <span class="section-sub">Must-eats &amp; top spots</span>
+        </div>
+        <div class="cycling-body" id="foodBody"></div>
+      </section>
+
+      <section class="forecast glass">
+        <div class="section-head">
+          <h2>Cycling <span class="cycling-brand">· MAAP rides</span></h2>
+          <a class="strava-link" href="https://www.strava.com/clubs/293623" target="_blank" rel="noopener" title="MAAP CC — official schedule on Strava">MAAP CC on Strava ↗</a>
+        </div>
+        <div class="cycling-body" id="cyclingBody"></div>
+      </section>
+
+      <section class="forecast glass">
+        <div class="section-head">
+          <h2>Rapha Rides <span class="rapha-brand">· RCC clubhouse</span></h2>
+          <a class="rapha-link" href="https://events.rapha.cc/" target="_blank" rel="noopener" title="Rapha events — official schedule">Rapha events ↗</a>
+        </div>
+        <div class="cycling-body" id="raphaBody"></div>
+      </section>
+
+      <section class="forecast glass">
+        <div class="section-head">
+          <h2>Spotify <span class="spotify-brand">· Music</span></h2>
+          <span class="section-sub">Player + your account</span>
+        </div>
+        <div class="spotify-body">
+          <iframe class="spotify-embed" id="spotifyEmbed" title="Spotify player"
+            src="https://open.spotify.com/embed/playlist/37i9dQZEVXbMDoHDwVN2tF?utm_source=generator"
+            width="100%" height="352" frameborder="0" loading="lazy"
+            allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"></iframe>
+          <div class="spotify-account" id="spotifyAccount"></div>
+        </div>
+      </section>
+
+      <section class="forecast glass">
+        <div class="section-head">
+          <h2>Essential Links</h2>
+          <span class="section-sub">Safety, stay &amp; language</span>
+        </div>
+        <div id="linksBody"></div>
+      </section>
+    </main>
+
+    <!-- ============ MAP ============ -->
+    <section class="map-panel glass">
+      <div class="section-head map-head">
+        <div>
+          <h2>Pin a location</h2>
+          <span class="section-sub">Click anywhere · animated rain radar</span>
+        </div>
+        <button class="radar-toggle active" id="radarToggle" aria-pressed="true" title="Toggle rain radar">
+          <span class="radar-dot"></span> Rain radar
+        </button>
+      </div>
+      <div id="map"></div>
+      <button class="save-pin-btn" id="savePinBtn" hidden>
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+        Save this location
+      </button>
+    </section>
+  </div>
+
+  <div class="toast" id="toast" hidden></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+          integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="app.js"></script>
+</body>
+</html>

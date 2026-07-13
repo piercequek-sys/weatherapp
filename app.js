@@ -1221,12 +1221,14 @@ async function fetchViaRss2Json(feedUrl, ms) {
   } finally { clearTimeout(timer); }
 }
 async function fetchHeadlines(feedUrl) {
-  // 1. Same-origin server proxy (reliable when server.js is running; fast 404 on static hosts).
-  try { return await fetchViaProxy(`/api/news?url=${encodeURIComponent(feedUrl)}`, 6000); } catch { /* fall through */ }
-  // 2. rss2json — CORS-enabled, works on static hosting (GitHub Pages) without a proxy.
-  try { return await fetchViaRss2Json(feedUrl, 9000); } catch { /* fall through */ }
-  // 3. Race the public CORS proxies — first valid RSS wins.
-  return Promise.any(PUBLIC_NEWS_PROXIES.map((mk) => fetchViaProxy(mk(feedUrl), 9000)));
+  // 1. Same-origin server proxy first (reliable when server.js is running; fast 404 on static hosts).
+  try { return await fetchViaProxy(`/api/news?url=${encodeURIComponent(feedUrl)}`, 5000); } catch { /* fall through */ }
+  // 2. Race every CORS-capable source together — rss2json + public proxies — so each feed
+  //    (incl. the uncached city query) gets several simultaneous chances; first valid wins.
+  return Promise.any([
+    fetchViaRss2Json(feedUrl, 9000),
+    ...PUBLIC_NEWS_PROXIES.map((mk) => fetchViaProxy(mk(feedUrl), 9000)),
+  ]);
 }
 
 function renderNews(place) {

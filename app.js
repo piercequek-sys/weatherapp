@@ -1188,10 +1188,31 @@ async function fetchViaProxy(url, ms) {
     return items;
   } finally { clearTimeout(timer); }
 }
+// rss2json is CORS-enabled, so it works directly from a static site (no proxy needed).
+async function fetchViaRss2Json(feedUrl, ms) {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), ms);
+  try {
+    const r = await fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(feedUrl)}`, { signal: ctl.signal });
+    if (!r.ok) throw new Error(`rss2json ${r.status}`);
+    const j = await r.json();
+    if (j.status !== 'ok' || !j.items?.length) throw new Error('rss2json empty');
+    const items = j.items.slice(0, 5).map((it) => {
+      let title = it.title || '', source = '';
+      const idx = title.lastIndexOf(' - ');
+      if (idx > 0) { source = title.slice(idx + 3).trim(); title = title.slice(0, idx); }
+      return { title, link: it.link || '', source, date: it.pubDate || '' };
+    }).filter((x) => x.title);
+    if (!items.length) throw new Error('rss2json no items');
+    return items;
+  } finally { clearTimeout(timer); }
+}
 async function fetchHeadlines(feedUrl) {
-  // 1. Same-origin server proxy first (reliable when server.js is running).
+  // 1. Same-origin server proxy (reliable when server.js is running; fast 404 on static hosts).
   try { return await fetchViaProxy(`/api/news?url=${encodeURIComponent(feedUrl)}`, 6000); } catch { /* fall through */ }
-  // 2. Race the public proxies — first valid RSS wins (Promise.any rejects only if all fail).
+  // 2. rss2json — CORS-enabled, works on static hosting (GitHub Pages) without a proxy.
+  try { return await fetchViaRss2Json(feedUrl, 9000); } catch { /* fall through */ }
+  // 3. Race the public CORS proxies — first valid RSS wins.
   return Promise.any(PUBLIC_NEWS_PROXIES.map((mk) => fetchViaProxy(mk(feedUrl), 9000)));
 }
 

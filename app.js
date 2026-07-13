@@ -2409,12 +2409,12 @@ function renderWorkdayOffice(place) {
   const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   const key = normCity(place.name);
   const cc = (place.cc || '').toUpperCase();
-  const card = (o, showCity) => {
+  const card = (o) => {
     const maps = `https://www.google.com/maps/search/?api=1&query=${enc(`Workday, ${o.a}`)}`;
-    return `<div class="wd-office">
+    return `<div class="wd-office wd-clickable" role="button" tabindex="0" data-a="${attrEsc(o.a)}" data-c="${attrEsc(o.c)}" title="Show the ${attrEsc(o.c)} office on the map">
       <div class="wd-pin">🏢</div>
       <div class="wd-info">
-        <div class="wd-name">${esc(o.c)}${o.hq ? ' <span class="wd-hq">HQ</span>' : ''}</div>
+        <div class="wd-name">${esc(o.c)}${o.hq ? ' <span class="wd-hq">HQ</span>' : ''} <span class="wd-map-hint">📍</span></div>
         <div class="wd-addr">${esc(o.a)}</div>
         ${o.p ? `<div class="wd-phone">☎ ${esc(o.p)}</div>` : ''}
         <a class="tv-inline-link" target="_blank" rel="noopener" href="${maps}">Open in Maps →</a>
@@ -2434,6 +2434,42 @@ function renderWorkdayOffice(place) {
     <div><strong>No Workday office in ${esc(place.name)}</strong><span>No listed office for this location.</span></div>
     <a class="tv-inline-link" target="_blank" rel="noopener" href="${WORKDAY_CONTACT_URL}">See all Workday offices →</a>
   </div>`;
+}
+// Click a Workday office card → geocode its address and pin it on the map.
+async function showWorkdayOnMap(addr, city) {
+  const label = `Workday ${city}`;
+  toast(`Locating ${label}…`);
+  const geo = async (q) => {
+    try { const r = await fetch(`https://nominatim.openstreetmap.org/search?q=${enc(q)}&format=json&limit=1`); const j = await r.json(); return j[0]; }
+    catch { return null; }
+  };
+  // Clean floor/unit/suite clutter that confuses geocoders, then try the landmark
+  // building first, then the street, then the city as a last resort.
+  const clean = (s) => s
+    .replace(/#[\w-]+/g, '')
+    .replace(/\b\d{1,3}(st|nd|rd|th)?[-\s]*(floor|fl|f)\b/ig, '')
+    .replace(/\b(level|suite|unit|ste|campus|phase|plot|survey|hissa|no\.?)\s*[\w.-]+/ig, '')
+    .replace(/\s{2,}/g, ' ').replace(/^[\s,.-]+|[\s,.-]+$/g, '').trim();
+  const segs = addr.split(',').map(clean).filter(Boolean);
+  const landmark = segs.find((s) => /(tower|building|plaza|hills|centre|center|park|mall|complex|square|gardens?|clubhouse)/i.test(s));
+  const queries = [];
+  if (landmark) queries.push(`${landmark}, ${city}`);
+  if (segs[0] && segs[0] !== landmark) queries.push(`${segs[0]}, ${city}`);
+  queries.push(city);
+  let hit = null;
+  for (const q of queries) { hit = await geo(q); if (hit) break; }
+  if (!hit) { toast(`Couldn't find ${label} on the map`); return; }
+  placeAttractionMarker(parseFloat(hit.lat), parseFloat(hit.lon), label);
+}
+if (el.workdayBody) {
+  el.workdayBody.addEventListener('click', (e) => {
+    if (e.target.closest('a')) return; // let the "Open in Maps" link work
+    const card = e.target.closest('.wd-office'); if (card) showWorkdayOnMap(card.dataset.a, card.dataset.c);
+  });
+  el.workdayBody.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const card = e.target.closest('.wd-office'); if (card) { e.preventDefault(); showWorkdayOnMap(card.dataset.a, card.dataset.c); }
+  });
 }
 
 /* ============================================================

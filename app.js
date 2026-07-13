@@ -572,6 +572,7 @@ const CITY_ATTRACTIONS = {
   'las vegas': ['The Strip — mega-resorts and Bellagio fountains', 'Fremont Street — downtown light canopy', 'Grand Canyon day trips — helicopter and bus tours', 'High Roller & Sphere — giant wheel and immersive venue', 'Red Rock Canyon & Hoover Dam — desert scenery and the dam'],
   washington: ['National Mall & monuments — Lincoln Memorial and Washington Monument', 'Smithsonian museums — world-class free museums', 'US Capitol & White House — seats of government', 'Arlington Cemetery & war memorials — hallowed grounds', 'Georgetown & Tidal Basin — historic streets and cherry blossoms'],
   chicago: ['Millennium Park & "The Bean" — reflective Cloud Gate sculpture', 'Willis Tower Skydeck — glass ledge high above the city', 'Navy Pier — lakefront pier and Ferris wheel', 'Art Institute of Chicago — world-famous collection', 'Riverwalk & architecture cruise — skyline by boat'],
+  atlanta: ['Georgia Aquarium — one of the world’s largest aquariums', 'World of Coca-Cola — the Coke brand museum', 'MLK Jr. National Historical Park — birth home & memorial', 'Centennial Olympic Park — 1996 Olympics park & fountains', 'Atlanta BeltLine & Ponce City Market — trail and food hall'],
   miami: ['South Beach — art-deco beachfront', 'Art Deco Historic District — pastel 1930s architecture', 'Wynwood Walls — open-air street-art murals', 'Little Havana — Cuban culture and cafés', 'Everglades & Vizcaya — airboat tours and a bayside villa'],
   toronto: ['CN Tower — landmark tower with glass floor', 'Royal Ontario Museum — art and natural history', 'Niagara Falls — day trip to the thundering falls', 'Distillery District & St Lawrence Market — historic lanes and food hall', 'Toronto Islands & Casa Loma — skyline views and a castle'],
   vancouver: ['Stanley Park — seawall and totem poles', 'Granville Island — public market and artisans', 'Capilano Suspension Bridge — treetop walk over a canyon', 'Grouse Mountain & Gastown — mountain and historic quarter', 'Science World & Kitsilano — geodesic dome and beaches'],
@@ -1095,6 +1096,11 @@ const EVENTS = {
     { name: 'Lollapalooza', sm: 8, sd: 1, em: 8, ed: 4, desc: 'Huge music festival in Grant Park' },
     { name: 'Chicago Air & Water Show', sm: 8, sd: 16, em: 8, ed: 17, desc: 'Free lakefront aerial show' },
     { name: 'Christkindlmarket', sm: 11, sd: 21, em: 12, ed: 24, desc: 'German-style Christmas market at Daley Plaza' } ],
+  atlanta: [
+    { name: 'Atlanta Dogwood Festival', sm: 4, sd: 11, em: 4, ed: 13, vary: true, desc: 'Arts festival in Piedmont Park' },
+    { name: 'Atlanta Jazz Festival', sm: 5, sd: 24, em: 5, ed: 26, vary: true, desc: 'Free Memorial-Day-weekend jazz in Piedmont Park' },
+    { name: 'Peachtree Road Race', sm: 7, sd: 4, em: 7, ed: 4, desc: 'The world’s largest 10K, every July 4th' },
+    { name: 'Music Midtown', sm: 9, sd: 19, em: 9, ed: 20, vary: true, desc: 'Major music festival in Piedmont Park' } ],
   'las vegas': [
     { name: 'Las Vegas Grand Prix (F1)', sm: 11, sd: 20, em: 11, ed: 22, desc: 'Formula 1 night race down the Strip' },
     { name: 'EDC (Electric Daisy Carnival)', sm: 5, sd: 16, em: 5, ed: 18, vary: true, desc: 'Massive electronic-music festival' },
@@ -1435,6 +1441,12 @@ const FOOD = {
     { name: "Al's Beef", note: 'Original-style Italian beef sandwiches' },
     { name: 'Girl & the Goat', note: 'Stephanie Izard’s acclaimed small plates' },
     { name: "Pequod's Pizza", note: 'Famous caramelized-crust pan pizza' } ] },
+  atlanta: { dishes: ['Southern fried chicken', 'Soul food', 'Shrimp & grits', 'Peach cobbler', 'BBQ'], places: [
+    { name: 'The Varsity', note: 'Iconic 1928 drive-in — chili dogs & onion rings' },
+    { name: "Mary Mac's Tea Room", note: 'Classic Southern comfort food' },
+    { name: 'Busy Bee Cafe', note: 'Famous soul-food fried chicken' },
+    { name: 'Fox Bros. Bar-B-Q', note: 'Beloved Texas-style barbecue' },
+    { name: 'Ponce City Market', note: 'Food hall in a historic building' } ] },
   'las vegas': { dishes: ['Buffets', 'Steakhouse', 'Celebrity-chef tasting menus', 'Shrimp cocktail', '24-hour diners'], places: [
     { name: 'Bacchanal Buffet (Caesars)', note: 'The ultimate Vegas buffet' },
     { name: 'Lotus of Siam', note: 'Legendary northern-Thai, off-Strip' },
@@ -1616,6 +1628,11 @@ const TRANSPORT = {
     { ic: '🚇', type: 'CTA train', name: 'Blue Line (O’Hare) · Orange Line (Midway)', detail: 'Direct to downtown · ~$5 · 40–45 min' },
     { ic: '🚌', type: 'Shuttle', name: 'Airport shuttles', detail: 'Shared vans to hotels' },
     { ic: '🚕', type: 'Taxi', name: 'Taxi', detail: '~$40–60 to downtown' } ] },
+  atlanta: { airport: 'Hartsfield-Jackson (ATL)', options: [
+    { ic: '🚗', type: 'Ride-hailing', name: 'Uber · Lyft', detail: '~$30–45 to Midtown/Downtown · 20–30 min' },
+    { ic: '🚆', type: 'MARTA rail', name: 'MARTA Red/Gold Line', detail: 'Direct from airport to downtown ~20 min · ~$2.50' },
+    { ic: '🚌', type: 'Bus', name: 'MARTA buses', detail: 'Cheap; wider coverage' },
+    { ic: '🚕', type: 'Taxi', name: 'Taxi', detail: 'Flat ~$30 to a downtown zone' } ] },
   'las vegas': { airport: 'Harry Reid Intl (LAS)', options: [
     { ic: '🚗', type: 'Ride-hailing', name: 'Uber · Lyft', detail: 'Level 2M pickup · ~$25–35 to the Strip · 15 min' },
     { ic: '🚌', type: 'Bus', name: 'RTC WAX / CX', detail: 'To the Strip & downtown · ~$6 day pass' },

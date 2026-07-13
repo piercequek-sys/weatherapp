@@ -81,6 +81,7 @@ const el = {
   radarToggle: $('radarToggle'), cyclingBody: $('cyclingBody'), raphaBody: $('raphaBody'),
   transportBody: $('transportBody'), foodBody: $('foodBody'), eventsBody: $('eventsBody'),
   linksBody: $('linksBody'), newsBody: $('newsBody'), spotifyAccount: $('spotifyAccount'),
+  hotelCity: $('hotelCity'), hotelName: $('hotelName'), hotelRoom: $('hotelRoom'), hotelAdd: $('hotelAdd'), hotelList: $('hotelList'),
 };
 
 /* ---------- Helpers ---------- */
@@ -527,6 +528,7 @@ const CITY_ATTRACTIONS = {
   'ho chi minh city': ['War Remnants Museum — sobering Vietnam War history', 'Notre-Dame Basilica & Central Post Office — colonial landmarks', 'Ben Thanh Market — bustling market for food and goods', 'Reunification Palace — 1970s presidential palace', 'Cu Chi Tunnels — wartime tunnel-network day trip'],
   manila: ['Intramuros & Fort Santiago — walled Spanish-colonial old city', 'Rizal Park — national hero’s memorial gardens', 'San Agustin Church — UNESCO baroque church', 'Manila Bay & Mall of Asia — sunset promenade and mega-mall', 'Binondo — the world’s oldest Chinatown food walk'],
   mumbai: ['Gateway of India — waterfront triumphal arch', 'Marine Drive — seaside promenade "Queen’s Necklace"', 'Elephanta Caves — rock-cut island temples', 'Chhatrapati Shivaji Terminus — Victorian-Gothic UNESCO station', 'Colaba & Dhobi Ghat — markets and open-air laundry'],
+  pune: ['Shaniwar Wada — 18th-century Maratha palace fort', 'Aga Khan Palace — Gandhi memorial set in gardens', 'Sinhagad Fort — hilltop fort with valley views', 'Dagdusheth Halwai Ganpati Temple — ornate, revered Ganesh temple', 'Pataleshwar Cave Temple — rock-cut 8th-century shrine'],
   delhi: ['Red Fort — Mughal sandstone fortress', 'Qutub Minar — soaring victory tower', 'India Gate & Humayun’s Tomb — war memorial and garden tomb', 'Lotus Temple & Akshardham — modern architectural marvels', 'Chandni Chowk & Jama Masjid — old-Delhi bazaar and grand mosque'],
   dubai: ['Burj Khalifa & Dubai Mall — world’s tallest tower and fountains', 'Palm Jumeirah — palm-shaped island and Atlantis', 'Dubai Marina & desert safari — waterfront and dune trips', 'Old Dubai (Al Fahidi & souks) — creek, abras, gold & spice souks', 'Museum of the Future & Dubai Frame — futuristic landmarks'],
   'abu dhabi': ['Sheikh Zayed Grand Mosque — vast white-marble mosque', 'Louvre Abu Dhabi — domed art museum on the coast', 'Qasr Al Watan — opulent presidential palace', 'Ferrari World & Yas Island — theme parks and racing', 'Corniche & Emirates Palace — waterfront and grand hotel'],
@@ -1032,6 +1034,16 @@ const EVENTS = {
     { name: 'Ganesh Chaturthi', sm: 8, sd: 27, em: 9, ed: 6, vary: true, desc: 'Giant Ganesha immersions along the coast' },
     { name: 'Diwali', sm: 11, sd: 8, em: 11, ed: 12, vary: true, desc: 'Festival of Lights; fireworks & sweets' },
     { name: 'Kala Ghoda Arts Festival', sm: 2, sd: 1, em: 2, ed: 9, desc: 'Street art & culture festival' } ],
+  pune: [
+    { name: 'Ganesh Chaturthi', sm: 8, sd: 27, em: 9, ed: 6, vary: true, desc: 'Pune’s grandest festival — processions & pandals' },
+    { name: 'Pune International Film Festival', sm: 1, sd: 9, em: 1, ed: 16, desc: 'PIFF — world & Marathi cinema' },
+    { name: 'Sawai Gandharva Bhimsen Festival', sm: 12, sd: 11, em: 12, ed: 13, vary: true, desc: 'Renowned Indian classical music festival' },
+    { name: 'Diwali', sm: 11, sd: 8, em: 11, ed: 12, vary: true, desc: 'Festival of Lights' } ],
+  shanghai: [
+    { name: 'Chinese New Year (Yu Garden Lanterns)', sm: 2, sd: 17, em: 2, ed: 24, vary: true, desc: 'Lantern displays & festivities at Yu Garden' },
+    { name: 'F1 Chinese Grand Prix', sm: 4, sd: 18, em: 4, ed: 20, vary: true, desc: 'Formula 1 at the Shanghai International Circuit' },
+    { name: 'Shanghai International Film Festival', sm: 6, sd: 14, em: 6, ed: 23, desc: 'Major Asian film festival (SIFF)' },
+    { name: 'Mid-Autumn Festival', sm: 9, sd: 15, em: 9, ed: 17, vary: true, desc: 'Mooncakes & lantern celebrations' } ],
   delhi: [
     { name: 'Republic Day Parade', sm: 1, sd: 26, em: 1, ed: 26, desc: 'Grand parade on Kartavya Path' },
     { name: 'Holi', sm: 3, sd: 14, em: 3, ed: 14, vary: true, desc: 'Festival of colours' },
@@ -1330,6 +1342,18 @@ const FOOD = {
     { name: 'Britannia & Co.', note: 'Iconic Parsi berry pulao' },
     { name: 'Trishna', note: 'Legendary butter-pepper-garlic crab' },
     { name: 'Mohammed Ali Road', note: 'Ramadan-season meat feast' } ] },
+  pune: { dishes: ['Misal pav', 'Vada pav', 'Puran poli', 'Mastani', 'Bhakarwadi'], places: [
+    { name: 'Bedekar Misal', note: 'Famous fiery Puneri misal pav' },
+    { name: 'Vaishali (FC Road)', note: 'Iconic South Indian dosas & filter coffee' },
+    { name: 'Goodluck Cafe', note: 'Classic Irani cafe — bun maska & chai' },
+    { name: 'Sujata Mastani', note: 'Legendary mastani (thick ice-cream shake)' },
+    { name: 'German Bakery (Koregaon Park)', note: 'Beloved cafe & bakery' } ] },
+  shanghai: { dishes: ['Xiaolongbao (soup dumplings)', 'Shengjianbao (pan-fried buns)', 'Hairy crab', 'Scallion-oil noodles', 'Red-braised pork'], places: [
+    { name: 'Din Tai Fung', note: 'World-famous soup dumplings' },
+    { name: "Yang's Fry Dumplings", note: 'Iconic shengjianbao (pan-fried buns)' },
+    { name: 'Jia Jia Tang Bao', note: 'Beloved hole-in-the-wall soup dumplings' },
+    { name: 'Nanxiang Steamed Bun (Yu Garden)', note: 'Historic xiaolongbao house' },
+    { name: 'Lost Heaven', note: 'Upscale Yunnan folk cuisine' } ] },
   delhi: { dishes: ['Butter chicken', 'Chole bhature', 'Parathas', 'Kebabs', 'Chaat'], places: [
     { name: "Karim's (Old Delhi)", note: 'Mughlai kebabs & korma since 1913' },
     { name: 'Paranthe Wali Gali', note: 'Stuffed fried parathas alley' },
@@ -1514,6 +1538,16 @@ const TRANSPORT = {
     { ic: '🚗', type: 'Ride-hailing', name: 'Uber · Ola', detail: 'Common; traffic-dependent' },
     { ic: '🚕', type: 'Taxi', name: 'Prepaid taxi', detail: 'Fixed-fare counter at terminal' },
     { ic: '🚇', type: 'Metro', name: 'Metro Line 3 (partial)', detail: 'Growing network; check current stations' } ] },
+  pune: { airport: 'Pune Airport (PNQ)', options: [
+    { ic: '🚗', type: 'Ride-hailing', name: 'Uber · Ola', detail: '~₹300–500 to city · 30–45 min' },
+    { ic: '🚇', type: 'Metro', name: 'Pune Metro', detail: 'Purple & Aqua lines serve central Pune' },
+    { ic: '🚌', type: 'Bus', name: 'PMPML bus', detail: 'Cheap city buses' },
+    { ic: '🚕', type: 'Taxi', name: 'Prepaid taxi', detail: 'Fixed-fare counter at the terminal' } ] },
+  shanghai: { airport: 'Pudong / Hongqiao (PVG / SHA)', options: [
+    { ic: '🚗', type: 'Ride-hailing', name: 'DiDi', detail: 'Dominant app (Chinese UI) · ~¥150–200 from Pudong' },
+    { ic: '🚄', type: 'Maglev', name: 'Shanghai Maglev + Metro', detail: 'Pudong→Longyang Rd at 430 km/h (~8 min), then Metro' },
+    { ic: '🚇', type: 'Metro', name: 'Metro Line 2 / 10', detail: 'Direct to the city centre; cheap' },
+    { ic: '🚕', type: 'Taxi', name: 'Metered taxi', detail: '~¥160 from Pudong · 45–60 min' } ] },
   delhi: { airport: 'Indira Gandhi (DEL)', options: [
     { ic: '🚗', type: 'Ride-hailing', name: 'Uber · Ola', detail: '~₹400–600 to central Delhi' },
     { ic: '🚇', type: 'Airport metro', name: 'Airport Express (Orange)', detail: 'To New Delhi Stn ~20 min · ~₹60' },
@@ -1765,6 +1799,7 @@ async function loadLocation(place, { moveMap = true } = {}) {
   renderRapha(place);
   renderLinks(place);
   updateSpotifyEmbed(place);
+  setHotelCityDefault(place.name);
 
   try {
     const data = await fetchWeather(place.lat, place.lon);
@@ -2299,9 +2334,58 @@ el.spotifyAccount.addEventListener('click', (e) => {
   }
 });
 
+/* ============================================================
+   REMEMBER MY HOTEL ROOM — hotel + room saved per city on this
+   device (localStorage), for multi-city / multi-country trips.
+   ============================================================ */
+const HOTELS_KEY = 'hotels.v1';
+let hotels = [];
+const escHtml = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+function loadHotels() { try { hotels = JSON.parse(localStorage.getItem(HOTELS_KEY)) || []; } catch { hotels = []; } }
+function saveHotels() { localStorage.setItem(HOTELS_KEY, JSON.stringify(hotels)); renderHotels(); }
+function renderHotels() {
+  if (!el.hotelList) return;
+  if (!hotels.length) {
+    el.hotelList.innerHTML = '<div class="hotel-empty">No rooms saved yet. Add your hotel &amp; room above — handy when hopping between cities.</div>';
+    return;
+  }
+  el.hotelList.innerHTML = hotels.map((h) => `
+    <div class="hotel-card">
+      <div class="hotel-room">${escHtml(h.room)}</div>
+      <div class="hotel-info">
+        <div class="hotel-name">${escHtml(h.hotel)}</div>
+        <div class="hotel-city">${escHtml(h.city || '—')}${h.savedAt ? ` · ${new Date(h.savedAt).toLocaleDateString()}` : ''}</div>
+      </div>
+      <button class="hotel-del" data-del="${h.id}" title="Delete" aria-label="Delete ${escHtml(h.hotel)}">✕</button>
+    </div>`).join('');
+}
+function addHotelEntry() {
+  const city = (el.hotelCity.value || '').trim();
+  const hotel = (el.hotelName.value || '').trim();
+  const room = (el.hotelRoom.value || '').trim();
+  if (!hotel || !room) { toast('Enter the hotel name and room number'); return; }
+  hotels.unshift({ id: Date.now(), city, hotel, room, savedAt: Date.now() });
+  saveHotels();
+  el.hotelName.value = ''; el.hotelRoom.value = ''; el.hotelName.focus(); // keep city for same-city stays
+  toast('Room saved');
+}
+function setHotelCityDefault(city) {
+  if (el.hotelCity && !el.hotelCity.value && city) el.hotelCity.value = city;
+}
+if (el.hotelAdd) {
+  el.hotelAdd.addEventListener('click', addHotelEntry);
+  [el.hotelName, el.hotelRoom, el.hotelCity].forEach((i) => i && i.addEventListener('keydown', (e) => { if (e.key === 'Enter') addHotelEntry(); }));
+  el.hotelList.addEventListener('click', (e) => {
+    const d = e.target.closest('[data-del]');
+    if (d) { hotels = hotels.filter((h) => String(h.id) !== d.dataset.del); saveHotels(); }
+  });
+}
+
 function boot() {
   loadCities();
   renderSaved();
+  loadHotels();
+  renderHotels();
   initMap();
   useMyLocation();
   if (state.cities.length) refreshSavedTemps();

@@ -82,6 +82,7 @@ const el = {
   transportBody: $('transportBody'), foodBody: $('foodBody'), eventsBody: $('eventsBody'),
   linksBody: $('linksBody'), newsBody: $('newsBody'), spotifyAccount: $('spotifyAccount'),
   hotelCity: $('hotelCity'), hotelName: $('hotelName'), hotelRoom: $('hotelRoom'), hotelAdd: $('hotelAdd'), hotelList: $('hotelList'),
+  workdayBody: $('workdayBody'),
 };
 
 /* ---------- Helpers ---------- */
@@ -1791,6 +1792,7 @@ async function loadLocation(place, { moveMap = true } = {}) {
   if (moveMap && state.map) setPin(place.lat, place.lon, { fly: true });
 
   renderTravel(place); // independent of weather fetch; runs in parallel
+  renderWorkdayOffice(place);
   renderEvents(place);
   renderNews(place);
   renderTransport(place);
@@ -2333,6 +2335,106 @@ el.spotifyAccount.addEventListener('click', (e) => {
     spAudio.onended = () => { play.textContent = '▶'; };
   }
 });
+
+/* ============================================================
+   WORKDAY OFFICES — from workday.com/company/about-workday/contact-us
+   Matched by city, then by country. { c: city, cc, a: address, p: phone, hq }
+   ============================================================ */
+const WORKDAY_OFFICES = [
+  // Asia Pacific
+  { c: 'Singapore', cc: 'SG', a: '1 Wallich Street, #08-02 Guoco Tower, Singapore 078881', p: '+65 6800 0600' },
+  { c: 'Bangkok', cc: 'TH', a: '28/F One Bangkok Tower 4, Witthayu Rd, Lumphini, Pathumwan, Bangkok 10330' },
+  { c: 'Jakarta', cc: 'ID', a: 'Sequis Tower, Level 17, Jl. Jend. Sudirman kav 71, Jakarta 12190' },
+  { c: 'Kuala Lumpur', cc: 'MY', a: 'Level 8, Centrepoint North, Mid Valley City, Lingkaran Syed Putra, 58000 KL' },
+  { c: 'Auckland', cc: 'NZ', a: 'Level 2, 152 Fanshawe St, Westhaven, Auckland 1010', p: '+64 9 980 7100' },
+  { c: 'Brisbane', cc: 'AU', a: 'Level 6, 88 Tribune Street, Brisbane, QLD 4101' },
+  { c: 'Chennai', cc: 'IN', a: 'Campus 1C, Millenia Business Park, Phase 1, MGR Salai, Perungudi, Chennai 600096' },
+  { c: 'Da Nang', cc: 'VN', a: '2nd–3rd Floor, Viettronimex Building, 460 Nguyen Huu Tho St, Cam Le, Da Nang' },
+  { c: 'Ho Chi Minh City', cc: 'VN', a: '9th Floor, Alpha Tower, 151-153 Nguyen Dinh Chieu St, Xuan Hoa Ward' },
+  { c: 'Hong Kong', cc: 'HK', a: 'Suite 3301-04, 33/F Tower One Times Square, 1 Matheson St, Causeway Bay' },
+  { c: 'Melbourne', cc: 'AU', a: 'Level 24, 360 Collins St, Melbourne, Victoria 3000' },
+  { c: 'Mumbai', cc: 'IN', a: '4th Floor, Godrej BKC, Plot C-68, G Block BKC, Bandra East, Mumbai 400051' },
+  { c: 'Osaka', cc: 'JP', a: '19F Osaka Umeda Twin Towers North, 8-1 Kakudacho, Kita-Ku, Osaka 530-0017' },
+  { c: 'Taipei', cc: 'TW', a: 'Level 34, Taipei Nanshan Plaza, 100 Songren Rd, Xinyi District, Taipei 11073' },
+  { c: 'Pune', cc: 'IN', a: '1st–2nd Floor, Tower A, Panchshil Business Park, Vimannagar, Pune 411014' },
+  { c: 'Tokyo', cc: 'JP', a: '20F Roppongi Hills Mori Tower, 6-10-1 Roppongi, Minato-ku, Tokyo 106-6120' },
+  { c: 'Sydney', cc: 'AU', a: 'Level 12, 100 Pacific Highway, North Sydney, NSW 2060' },
+  { c: 'Seoul', cc: 'KR', a: '14F Gangnam N Tower, 129 Teheran-ro, Gangnam-gu, Seoul 06133', p: '+82 70 4784 4300' },
+  // Americas
+  { c: 'Pleasanton', cc: 'US', a: '6110 Stoneridge Mall Road, Pleasanton, CA 94588', p: '+1 925 951 9000', hq: true },
+  { c: 'Atlanta', cc: 'US', a: '3350 Peachtree Road NE, Suite 1000, Atlanta, GA 30326' },
+  { c: 'Austin', cc: 'US', a: '3815 S. Capital of Texas Hwy, Suite 500, Austin, TX 78704' },
+  { c: 'Beaverton', cc: 'US', a: '4145 SW Watson Avenue, Suite 500, Beaverton, OR 97005' },
+  { c: 'Boston', cc: 'US', a: '33 Arch Street, Suite 2200, Boston, MA 02110' },
+  { c: 'Boulder', cc: 'US', a: '4900 Pearl East Circle, Suite 100, Boulder, CO 80301' },
+  { c: 'Chicago', cc: 'US', a: '111 W. Jackson Boulevard, Suite 2100, Chicago, IL 60604' },
+  { c: 'Denver', cc: 'US', a: '1001 17th Street, Suite 640, Denver, CO 80202' },
+  { c: 'Minneapolis', cc: 'US', a: '729 N Washington Ave, Suite 600, Minneapolis, MN 55401' },
+  { c: 'New York', cc: 'US', a: '350 5th Avenue, Suite 4900, New York, NY 10118' },
+  { c: 'Salt Lake City', cc: 'US', a: '2855 East Cottonwood Pkwy, Suite 300, Salt Lake City, UT 84121' },
+  { c: 'San Francisco', cc: 'US', a: '160 Spear Street, Suite 1700, San Francisco, CA 94105' },
+  { c: 'Santa Clara', cc: 'US', a: '5451 Great America Pkwy, Suite 401, Santa Clara, CA 95054' },
+  { c: 'Scottsdale', cc: 'US', a: '6330 East Thomas Road, #200, Scottsdale, AZ 85251' },
+  { c: 'Seattle', cc: 'US', a: '601 Union Street, Suite 3320, Seattle, WA 98101' },
+  { c: 'Washington', cc: 'US', a: '300 New Jersey Avenue NW, Washington, DC 20001' },
+  { c: 'Montreal', cc: 'CA', a: '3 Place Ville Marie, Suite 400, Montréal, QC H3B 2E3' },
+  { c: 'Toronto', cc: 'CA', a: '200 Wellington Street West, Suite 701, Toronto, ON M5V 3C7' },
+  { c: 'Vancouver', cc: 'CA', a: '601 W. Hastings, Suite 2500, Vancouver, BC V6B 1M8' },
+  { c: 'Mexico City', cc: 'MX', a: 'Blvd. Miguel de Cervantes Saavedra 252, 5th Floor, Granada, 11520 CDMX' },
+  // Europe
+  { c: 'Amsterdam', cc: 'NL', a: 'Gustav Mahlerplein 82, 1082 MA Amsterdam', p: '+31 20 708 6000' },
+  { c: 'Berlin', cc: 'DE', a: 'Leipziger Platz 18, 10117 Berlin' },
+  { c: 'Copenhagen', cc: 'DK', a: 'Bredgade 6, Copenhagen K 1260' },
+  { c: 'Dublin', cc: 'IE', a: 'Kings Building, 152-155 Church Street, Dublin 7, D07 A0TN', p: '+353 1 241 9900' },
+  { c: 'Helsinki', cc: 'FI', a: 'Epicenter, Mikonkatu 9, 00100 Helsinki' },
+  { c: 'London', cc: 'GB', a: '7th Floor, 1 Finsbury Avenue, London EC2M 2PF', p: '+44 20 7150 6200' },
+  { c: 'Madrid', cc: 'ES', a: 'Torre Emperador, Paseo de la Castellana 259D, Planta 21N, Madrid 28046' },
+  { c: 'Milan', cc: 'IT', a: 'Via San Marco 21, Milan 20121' },
+  { c: 'Munich', cc: 'DE', a: 'Streitfeldstrasse 19, 81673 Munich', p: '+49 89 550 565 000' },
+  { c: 'Oslo', cc: 'NO', a: 'Dronning Eufemias Gate 16, 7th Floor, 0191 Oslo' },
+  { c: 'Paris', cc: 'FR', a: '7-11 boulevard Haussmann, 75009 Paris', p: '+33 1 73 00 09 00' },
+  { c: 'Prague', cc: 'CZ', a: 'Pernerova 727/40a, 186 00 Prague 8' },
+  { c: 'Stockholm', cc: 'SE', a: 'Östra Järnvägsgatan 27, 9th floor, 111 20 Stockholm' },
+  { c: 'Warsaw', cc: 'PL', a: 'Chmielna 73, 00-801 Warsaw' },
+  { c: 'Zurich', cc: 'CH', a: 'Utoquai 55, 8008 Zurich' },
+  // Africa & Middle East
+  { c: 'Johannesburg', cc: 'ZA', a: 'WeWork, 155 West Street, Sandton, Johannesburg 2031' },
+  { c: 'Dubai', cc: 'AE', a: 'DIC Building 09, Unit 220-221, Level 2, Dubai Internet City' },
+  { c: 'Riyadh', cc: 'SA', a: 'KAFD 4.07, Al Aqueeq District, Riyadh' },
+  { c: 'Tel Aviv', cc: 'IL', a: "13 Ha'arbaa Street, Tel Aviv-Yafo 6473913" },
+];
+const WORKDAY_CONTACT_URL = 'https://www.workday.com/en-sg/company/about-workday/contact-us.html';
+function renderWorkdayOffice(place) {
+  if (!el.workdayBody) return;
+  const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const key = normCity(place.name);
+  const cc = (place.cc || '').toUpperCase();
+  const card = (o, showCity) => {
+    const maps = `https://www.google.com/maps/search/?api=1&query=${enc(`Workday, ${o.a}`)}`;
+    return `<div class="wd-office">
+      <div class="wd-pin">🏢</div>
+      <div class="wd-info">
+        <div class="wd-name">${esc(o.c)}${o.hq ? ' <span class="wd-hq">HQ</span>' : ''}</div>
+        <div class="wd-addr">${esc(o.a)}</div>
+        ${o.p ? `<div class="wd-phone">☎ ${esc(o.p)}</div>` : ''}
+        <a class="tv-inline-link" target="_blank" rel="noopener" href="${maps}">Open in Maps →</a>
+      </div>
+    </div>`;
+  };
+  const cityHit = WORKDAY_OFFICES.find((o) => normCity(o.c) === key);
+  if (cityHit) { el.workdayBody.innerHTML = `<div class="cycling-note">Workday office in ${esc(place.name)}</div>${card(cityHit)}`; return; }
+  const inCountry = cc ? WORKDAY_OFFICES.filter((o) => o.cc === cc) : [];
+  if (inCountry.length) {
+    const shown = inCountry.slice(0, 8);
+    el.workdayBody.innerHTML = `<div class="cycling-note">Workday offices in ${esc(place.country || 'this country')}</div>${shown.map((o) => card(o)).join('')}${inCountry.length > shown.length ? `<div class="wd-more"><a class="tv-inline-link" target="_blank" rel="noopener" href="${WORKDAY_CONTACT_URL}">+${inCountry.length - shown.length} more offices →</a></div>` : ''}`;
+    return;
+  }
+  el.workdayBody.innerHTML = `<div class="cycling-empty">
+    <div class="cycling-empty-ic">🏢</div>
+    <div><strong>No Workday office in ${esc(place.name)}</strong><span>No listed office for this location.</span></div>
+    <a class="tv-inline-link" target="_blank" rel="noopener" href="${WORKDAY_CONTACT_URL}">See all Workday offices →</a>
+  </div>`;
+}
 
 /* ============================================================
    REMEMBER MY HOTEL ROOM — hotel + room saved per city on this

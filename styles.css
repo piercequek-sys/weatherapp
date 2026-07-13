@@ -465,6 +465,17 @@ body {
 .sp-play { flex-shrink: 0; width: 30px; height: 30px; border-radius: 50%; border: none; background: #1db954; color: #04120a; font-size: 11px; cursor: pointer; display: grid; place-items: center; text-decoration: none; }
 .sp-play:hover { filter: brightness(1.1); }
 
+/* workday office */
+.wd-office { display: flex; gap: 12px; align-items: flex-start; padding: 13px; border-radius: var(--radius-sm); background: rgba(0, 0, 0, 0.16); border: 1px solid var(--stroke); margin-bottom: 10px; }
+.wd-office:last-of-type { margin-bottom: 0; }
+.wd-pin { font-size: 20px; flex-shrink: 0; }
+.wd-info { flex: 1; min-width: 0; }
+.wd-name { font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+.wd-hq { font-size: 10px; font-weight: 700; letter-spacing: 0.04em; color: #4ade80; background: rgba(74, 222, 128, 0.14); border: 1px solid rgba(74, 222, 128, 0.35); padding: 2px 7px; border-radius: 999px; }
+.wd-addr { font-size: 13px; color: var(--muted); margin-top: 3px; line-height: 1.45; }
+.wd-phone { font-size: 13px; color: var(--muted); margin-top: 4px; }
+.wd-more { margin-top: 4px; }
+
 /* remember my hotel room */
 .hotel-form { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
 .hotel-in {

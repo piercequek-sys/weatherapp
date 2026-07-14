@@ -82,7 +82,7 @@ const el = {
   transportBody: $('transportBody'), foodBody: $('foodBody'), eventsBody: $('eventsBody'),
   linksBody: $('linksBody'), newsBody: $('newsBody'), spotifyAccount: $('spotifyAccount'),
   hotelCity: $('hotelCity'), hotelName: $('hotelName'), hotelRoom: $('hotelRoom'), hotelAdd: $('hotelAdd'), hotelList: $('hotelList'),
-  workdayBody: $('workdayBody'),
+  workdayBody: $('workdayBody'), packingBody: $('packingBody'), essentialsBody: $('essentialsBody'), heroAqi: $('heroAqi'),
 };
 
 /* ---------- Helpers ---------- */
@@ -1812,6 +1812,8 @@ async function loadLocation(place, { moveMap = true } = {}) {
 
   renderTravel(place); // independent of weather fetch; runs in parallel
   renderWorkdayOffice(place);
+  renderEssentials(place);
+  updateAirQuality(place);
   renderEvents(place);
   renderNews(place);
   renderTransport(place);
@@ -1830,6 +1832,7 @@ async function loadLocation(place, { moveMap = true } = {}) {
     renderCurrent(place, data);
     renderHourly(data, 0);
     renderDaily(data);
+    renderPacking(data, place);
     el.heroLoading.hidden = true;
     el.heroContent.hidden = false;
   } catch (e) {
@@ -2354,6 +2357,127 @@ el.spotifyAccount.addEventListener('click', (e) => {
     spAudio.onended = () => { play.textContent = '▶'; };
   }
 });
+
+/* ============================================================
+   AIR QUALITY — live US AQI from Open-Meteo (keyless), shown in the hero.
+   ============================================================ */
+const AQI_LEVELS = [
+  [50, 'Good', 'aqi-good'], [100, 'Moderate', 'aqi-mod'], [150, 'Unhealthy for sensitive', 'aqi-usg'],
+  [200, 'Unhealthy', 'aqi-bad'], [300, 'Very unhealthy', 'aqi-vbad'], [Infinity, 'Hazardous', 'aqi-haz'],
+];
+let aqiToken = 0;
+async function updateAirQuality(place) {
+  if (!el.heroAqi) return;
+  const token = ++aqiToken;
+  el.heroAqi.hidden = true;
+  try {
+    const r = await fetch(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${place.lat}&longitude=${place.lon}&current=us_aqi&timezone=auto`);
+    const aqi = (await r.json()).current?.us_aqi;
+    if (token !== aqiToken || aqi == null) return;
+    const [, label, cls] = AQI_LEVELS.find((l) => aqi <= l[0]);
+    el.heroAqi.className = `aqi-badge ${cls}`;
+    el.heroAqi.textContent = `AQI ${Math.round(aqi)} · ${label}`;
+    el.heroAqi.hidden = false;
+  } catch { /* leave hidden */ }
+}
+
+/* ============================================================
+   PACKING SUGGESTIONS — derived from the destination's 7-day forecast.
+   ============================================================ */
+function renderPacking(data, place) {
+  if (!el.packingBody) return;
+  const d = data && data.daily;
+  if (!d) { el.packingBody.innerHTML = '<div class="cycling-empty"><div class="cycling-empty-ic">🎒</div><div><strong>Forecast unavailable</strong><span>Packing tips appear once the forecast loads.</span></div></div>'; return; }
+  const maxT = Math.max(...d.temperature_2m_max);
+  const minT = Math.min(...d.temperature_2m_min);
+  const uvMax = Math.max(...(d.uv_index_max || [0]));
+  const rainy = (d.weather_code || []).some((c) => c >= 51) || (data.hourly?.precipitation_probability || []).some((p) => p >= 50);
+  const items = [];
+  if (minT < 0) items.push(['🧥', 'Heavy winter coat, gloves & hat', `Freezing — lows ~${Math.round(minT)}°C`]);
+  else if (minT < 10) items.push(['🧥', 'Warm jacket & layers', `Cold — lows ~${Math.round(minT)}°C`]);
+  else if (minT < 18) items.push(['🧥', 'A light jacket or sweater', `Cooler evenings (~${Math.round(minT)}°C)`]);
+  if (maxT >= 30) items.push(['👕', 'Light, breathable clothing', `Hot — highs ~${Math.round(maxT)}°C`]);
+  else if (maxT >= 22) items.push(['👕', 'Comfortable warm-weather clothes', `Pleasant highs ~${Math.round(maxT)}°C`]);
+  if (rainy) items.push(['☔', 'Umbrella or rain jacket', 'Rain in the forecast']);
+  if (uvMax >= 6) items.push(['🧴', 'Sunscreen, sunglasses & a hat', `Strong sun (UV ${Math.round(uvMax)})`]);
+  let cc = (place.cc || '').toUpperCase();
+  if (!ESSENTIALS[cc] && place.country) cc = NAME_TO_CC[place.country.toLowerCase()] || cc;
+  if (ESSENTIALS[cc]) items.push(['🔌', `Power adapter — ${ESSENTIALS[cc].plug}, ${ESSENTIALS[cc].volt}`, 'Matches this country’s sockets']);
+  items.push(['🧳', 'Passport, cards & any medication', 'Trip essentials']);
+  el.packingBody.innerHTML = `<div class="cycling-note">Packing for ${place.name} · next 7 days</div>${items.map(([ic, t, sub]) => `<div class="pack-item"><span class="pack-ic">${ic}</span><div class="pack-info"><div class="pack-t">${t}</div><div class="pack-sub">${sub}</div></div></div>`).join('')}`;
+}
+
+/* ============================================================
+   COUNTRY ESSENTIALS — plugs, water, driving side, tipping, phrases.
+   { plug, volt, water: safe|bottled|treated, drive: L|R, tip, hello, thanks }
+   ============================================================ */
+const ESSENTIALS = {
+  SG: { plug: 'Type G', volt: '230V', water: 'safe', drive: 'L', tip: 'Not expected (service charge added)', hello: 'Hello', thanks: 'Thank you' },
+  MY: { plug: 'Type G', volt: '240V', water: 'bottled', drive: 'L', tip: 'Optional; round up', hello: 'Helo', thanks: 'Terima kasih' },
+  TH: { plug: 'Type A/B/C', volt: '230V', water: 'bottled', drive: 'L', tip: 'Optional; ~10%', hello: 'Sawasdee', thanks: 'Khop khun' },
+  ID: { plug: 'Type C/F', volt: '230V', water: 'bottled', drive: 'L', tip: 'Optional; round up', hello: 'Halo', thanks: 'Terima kasih' },
+  VN: { plug: 'Type A/C/F', volt: '220V', water: 'bottled', drive: 'R', tip: 'Optional; round up', hello: 'Xin chào', thanks: 'Cảm ơn' },
+  PH: { plug: 'Type A/B/C', volt: '220V', water: 'bottled', drive: 'R', tip: 'Optional; ~10%', hello: 'Kumusta', thanks: 'Salamat' },
+  JP: { plug: 'Type A/B', volt: '100V', water: 'safe', drive: 'L', tip: 'Not customary — don’t tip', hello: 'Konnichiwa', thanks: 'Arigatō' },
+  KR: { plug: 'Type C/F', volt: '220V', water: 'safe', drive: 'R', tip: 'Not expected', hello: 'Annyeong', thanks: 'Gamsahamnida' },
+  CN: { plug: 'Type A/I', volt: '220V', water: 'bottled', drive: 'R', tip: 'Not expected', hello: 'Nǐ hǎo', thanks: 'Xièxie' },
+  HK: { plug: 'Type G', volt: '220V', water: 'safe', drive: 'L', tip: 'Optional; round up', hello: 'Néih hóu', thanks: 'Mgoi' },
+  TW: { plug: 'Type A/B', volt: '110V', water: 'bottled', drive: 'R', tip: 'Not expected', hello: 'Nǐ hǎo', thanks: 'Xièxie' },
+  IN: { plug: 'Type C/D/M', volt: '230V', water: 'bottled', drive: 'L', tip: '~5–10%', hello: 'Namaste', thanks: 'Dhanyavaad' },
+  AE: { plug: 'Type G', volt: '230V', water: 'treated', drive: 'R', tip: '10–15% common', hello: 'Marhaba', thanks: 'Shukran' },
+  AU: { plug: 'Type I', volt: '230V', water: 'safe', drive: 'L', tip: 'Not expected (optional)', hello: 'G’day', thanks: 'Thanks' },
+  NZ: { plug: 'Type I', volt: '230V', water: 'safe', drive: 'L', tip: 'Not expected', hello: 'Kia ora', thanks: 'Thanks' },
+  GB: { plug: 'Type G', volt: '230V', water: 'safe', drive: 'L', tip: '10–12.5% (often included)', hello: 'Hello', thanks: 'Thanks' },
+  IE: { plug: 'Type G', volt: '230V', water: 'safe', drive: 'L', tip: '10–15%', hello: 'Hello', thanks: 'Go raibh maith agat' },
+  FR: { plug: 'Type C/E', volt: '230V', water: 'safe', drive: 'R', tip: 'Service included; round up', hello: 'Bonjour', thanks: 'Merci' },
+  IT: { plug: 'Type C/F/L', volt: '230V', water: 'safe', drive: 'R', tip: 'Coperto included; round up', hello: 'Buongiorno', thanks: 'Grazie' },
+  ES: { plug: 'Type C/F', volt: '230V', water: 'safe', drive: 'R', tip: 'Round up; small tip', hello: 'Hola', thanks: 'Gracias' },
+  DE: { plug: 'Type C/F', volt: '230V', water: 'safe', drive: 'R', tip: 'Round up ~5–10%', hello: 'Hallo', thanks: 'Danke' },
+  CH: { plug: 'Type J', volt: '230V', water: 'safe', drive: 'R', tip: 'Service included; round up', hello: 'Grüezi', thanks: 'Danke' },
+  NL: { plug: 'Type C/F', volt: '230V', water: 'safe', drive: 'R', tip: 'Round up ~5–10%', hello: 'Hallo', thanks: 'Dank je' },
+  AT: { plug: 'Type C/F', volt: '230V', water: 'safe', drive: 'R', tip: 'Round up ~5–10%', hello: 'Servus', thanks: 'Danke' },
+  BE: { plug: 'Type C/E', volt: '230V', water: 'safe', drive: 'R', tip: 'Service included', hello: 'Hallo', thanks: 'Bedankt' },
+  PT: { plug: 'Type C/F', volt: '230V', water: 'safe', drive: 'R', tip: 'Round up ~5–10%', hello: 'Olá', thanks: 'Obrigado' },
+  GR: { plug: 'Type C/F', volt: '230V', water: 'safe', drive: 'R', tip: 'Round up ~5–10%', hello: 'Yassou', thanks: 'Efcharistó' },
+  CZ: { plug: 'Type C/E', volt: '230V', water: 'safe', drive: 'R', tip: '~10%', hello: 'Ahoj', thanks: 'Děkuji' },
+  PL: { plug: 'Type C/E', volt: '230V', water: 'safe', drive: 'R', tip: '~10%', hello: 'Cześć', thanks: 'Dziękuję' },
+  SE: { plug: 'Type C/F', volt: '230V', water: 'safe', drive: 'R', tip: 'Service included', hello: 'Hej', thanks: 'Tack' },
+  NO: { plug: 'Type C/F', volt: '230V', water: 'safe', drive: 'R', tip: 'Round up', hello: 'Hei', thanks: 'Takk' },
+  DK: { plug: 'Type C/K', volt: '230V', water: 'safe', drive: 'R', tip: 'Service included', hello: 'Hej', thanks: 'Tak' },
+  FI: { plug: 'Type C/F', volt: '230V', water: 'safe', drive: 'R', tip: 'Service included', hello: 'Hei', thanks: 'Kiitos' },
+  TR: { plug: 'Type C/F', volt: '230V', water: 'bottled', drive: 'R', tip: '~5–10%', hello: 'Merhaba', thanks: 'Teşekkürler' },
+  EG: { plug: 'Type C/F', volt: '220V', water: 'bottled', drive: 'R', tip: '~10% (baksheesh)', hello: 'Ahlan', thanks: 'Shukran' },
+  US: { plug: 'Type A/B', volt: '120V', water: 'safe', drive: 'R', tip: '15–20% expected', hello: 'Hi', thanks: 'Thanks' },
+  CA: { plug: 'Type A/B', volt: '120V', water: 'safe', drive: 'R', tip: '15–20% expected', hello: 'Hi', thanks: 'Thanks' },
+  MX: { plug: 'Type A/B', volt: '127V', water: 'bottled', drive: 'R', tip: '10–15%', hello: 'Hola', thanks: 'Gracias' },
+  BR: { plug: 'Type N/C', volt: '127/220V', water: 'bottled', drive: 'R', tip: '10% (often included)', hello: 'Olá', thanks: 'Obrigado' },
+  ZA: { plug: 'Type M/N', volt: '230V', water: 'safe', drive: 'L', tip: '10–15%', hello: 'Hello', thanks: 'Ngiyabonga' },
+  SA: { plug: 'Type G', volt: '230V', water: 'bottled', drive: 'R', tip: 'Not expected (optional)', hello: 'Marhaba', thanks: 'Shukran' },
+  QA: { plug: 'Type G', volt: '240V', water: 'treated', drive: 'R', tip: 'Optional', hello: 'Marhaba', thanks: 'Shukran' },
+  IL: { plug: 'Type H/C', volt: '230V', water: 'safe', drive: 'R', tip: '~10–12%', hello: 'Shalom', thanks: 'Toda' },
+};
+function renderEssentials(place) {
+  if (!el.essentialsBody) return;
+  let cc = (place.cc || '').toUpperCase();
+  if (!ESSENTIALS[cc] && place.country) cc = NAME_TO_CC[place.country.toLowerCase()] || cc;
+  const e = ESSENTIALS[cc];
+  if (!e) {
+    el.essentialsBody.innerHTML = `<div class="cycling-empty"><div class="cycling-empty-ic">🧳</div><div><strong>Not curated for ${place.name}</strong><span>Country essentials aren’t listed for this location yet.</span></div></div>`;
+    return;
+  }
+  const water = e.water === 'safe' ? '<span class="ess-ok">Tap water is safe to drink</span>'
+    : e.water === 'treated' ? 'Tap is treated; locals prefer bottled'
+    : '<span class="ess-warn">Drink bottled water</span>';
+  const drive = e.drive === 'L' ? 'Drives on the left ⬅' : 'Drives on the right ➡';
+  const cell = (ic, k, v) => `<div class="ess"><span class="ess-ic">${ic}</span><div class="ess-info"><div class="ess-k">${k}</div><div class="ess-v">${v}</div></div></div>`;
+  el.essentialsBody.innerHTML = `<div class="ess-grid">
+    ${cell('🔌', 'Power', `${e.plug} · ${e.volt}`)}
+    ${cell('🚰', 'Tap water', water)}
+    ${cell('🚗', 'Driving', drive)}
+    ${cell('💵', 'Tipping', e.tip)}
+    <div class="ess ess-span"><span class="ess-ic">🗣️</span><div class="ess-info"><div class="ess-k">Say hello / thanks</div><div class="ess-v">“${e.hello}” · “${e.thanks}”</div></div></div>
+  </div>`;
+}
 
 /* ============================================================
    WORKDAY OFFICES — from workday.com/company/about-workday/contact-us

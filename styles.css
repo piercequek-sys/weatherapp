@@ -465,6 +465,34 @@ body {
 .sp-play { flex-shrink: 0; width: 30px; height: 30px; border-radius: 50%; border: none; background: #1db954; color: #04120a; font-size: 11px; cursor: pointer; display: grid; place-items: center; text-decoration: none; }
 .sp-play:hover { filter: brightness(1.1); }
 
+/* air quality badge (hero) */
+.aqi-badge { font-size: 13px; font-weight: 700; padding: 3px 10px; border-radius: 999px; white-space: nowrap; }
+.aqi-badge.aqi-good { color: #4ade80; background: rgba(74,222,128,0.16); border: 1px solid rgba(74,222,128,0.35); }
+.aqi-badge.aqi-mod { color: #ffe08a; background: rgba(255,224,138,0.16); border: 1px solid rgba(255,224,138,0.35); }
+.aqi-badge.aqi-usg { color: #ffb066; background: rgba(255,176,102,0.16); border: 1px solid rgba(255,176,102,0.4); }
+.aqi-badge.aqi-bad { color: #ff8a8a; background: rgba(255,120,120,0.16); border: 1px solid rgba(255,120,120,0.4); }
+.aqi-badge.aqi-vbad { color: #d59bff; background: rgba(180,110,255,0.18); border: 1px solid rgba(180,110,255,0.45); }
+.aqi-badge.aqi-haz { color: #ff9a9a; background: rgba(150,40,40,0.35); border: 1px solid rgba(255,120,120,0.5); }
+
+/* packing suggestions */
+.pack-item { display: flex; gap: 12px; align-items: flex-start; padding: 9px 0; border-top: 1px solid rgba(255,255,255,0.06); }
+.pack-item:first-of-type { border-top: none; }
+.pack-ic { font-size: 20px; flex-shrink: 0; width: 28px; text-align: center; }
+.pack-info { flex: 1; min-width: 0; }
+.pack-t { font-size: 14px; font-weight: 500; }
+.pack-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+/* country essentials */
+.ess-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.ess { display: flex; gap: 11px; align-items: flex-start; background: rgba(0,0,0,0.16); border: 1px solid var(--stroke); border-radius: var(--radius-sm); padding: 13px; }
+.ess-span { grid-column: 1 / -1; }
+.ess-ic { font-size: 19px; flex-shrink: 0; }
+.ess-info { min-width: 0; }
+.ess-k { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); font-weight: 600; }
+.ess-v { font-size: 13.5px; font-weight: 500; margin-top: 3px; line-height: 1.4; }
+.ess-ok { color: #4ade80; }
+.ess-warn { color: #ffc46b; }
+
 /* workday office */
 .wd-office { display: flex; gap: 12px; align-items: flex-start; padding: 13px; border-radius: var(--radius-sm); background: rgba(0, 0, 0, 0.16); border: 1px solid var(--stroke); margin-bottom: 10px; }
 .wd-office:last-of-type { margin-bottom: 0; }
@@ -707,4 +735,5 @@ body {
   .travel-body { grid-template-columns: 1fr; }
   .tv-links { grid-template-columns: 1fr; }
   .news-grid { grid-template-columns: 1fr; }
+  .ess-grid { grid-template-columns: 1fr; }
 }

@@ -157,6 +157,25 @@
 
       <section class="forecast glass">
         <div class="section-head">
+          <h2>Expense Tracker <span class="cycling-brand">· 💳</span></h2>
+          <span class="section-sub">Auto-converted to SGD</span>
+        </div>
+        <div class="exp-form">
+          <input id="expMerchant" class="hotel-in" placeholder="Merchant" autocomplete="off">
+          <input id="expAmount" class="hotel-in exp-amt" type="number" min="0" inputmode="decimal" placeholder="Amount" autocomplete="off">
+          <select id="expCur" class="hotel-in exp-cur" aria-label="Currency"></select>
+          <button id="expAdd" class="hotel-add">Add</button>
+          <label class="exp-scan" id="expScanLabel" title="Scan a receipt to auto-fill">📷 Scan receipt
+            <input id="expReceipt" type="file" accept="image/*" hidden>
+          </label>
+        </div>
+        <div class="exp-status" id="expStatus" hidden></div>
+        <div class="exp-total" id="expTotal"></div>
+        <div class="exp-list" id="expList"></div>
+      </section>
+
+      <section class="forecast glass">
+        <div class="section-head">
           <h2>News <span class="cycling-brand">· Top headlines</span></h2>
           <span class="section-sub">Live from Google News</span>
         </div>

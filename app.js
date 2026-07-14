@@ -83,6 +83,8 @@ const el = {
   linksBody: $('linksBody'), newsBody: $('newsBody'), spotifyAccount: $('spotifyAccount'),
   hotelCity: $('hotelCity'), hotelName: $('hotelName'), hotelRoom: $('hotelRoom'), hotelAdd: $('hotelAdd'), hotelList: $('hotelList'),
   workdayBody: $('workdayBody'), packingBody: $('packingBody'), essentialsBody: $('essentialsBody'), heroAqi: $('heroAqi'),
+  expMerchant: $('expMerchant'), expAmount: $('expAmount'), expCur: $('expCur'), expAdd: $('expAdd'),
+  expReceipt: $('expReceipt'), expStatus: $('expStatus'), expTotal: $('expTotal'), expList: $('expList'),
 };
 
 /* ---------- Helpers ---------- */
@@ -1823,6 +1825,7 @@ async function loadLocation(place, { moveMap = true } = {}) {
   renderLinks(place);
   updateSpotifyEmbed(place);
   setHotelCityDefault(place.name);
+  setExpCurDefault(place.cc);
 
   try {
     const data = await fetchWeather(place.lat, place.lon);
@@ -2662,11 +2665,125 @@ if (el.hotelAdd) {
   });
 }
 
+/* ============================================================
+   EXPENSE TRACKER — log spend, auto-convert to SGD (live rates),
+   with optional receipt OCR (Tesseract.js, keyless, client-side).
+   ============================================================ */
+const EXP_KEY = 'expenses.v1';
+let expenses = [];
+function loadExpenses() { try { expenses = JSON.parse(localStorage.getItem(EXP_KEY)) || []; } catch { expenses = []; } }
+function saveExpenses() { localStorage.setItem(EXP_KEY, JSON.stringify(expenses)); renderExpenses(); }
+function expInitCurrencies() {
+  if (!el.expCur) return;
+  el.expCur.innerHTML = CURRENCY_LIST.map((c) => `<option value="${c}">${c}</option>`).join('');
+  el.expCur.value = 'SGD';
+}
+function setExpCurDefault(cc) {
+  if (!el.expCur) return;
+  const code = COUNTRY_INFO[(cc || '').toUpperCase()]?.[0];
+  if (code && [...el.expCur.options].some((o) => o.value === code)) el.expCur.value = code;
+}
+function renderExpenses() {
+  if (!el.expList) return;
+  const totalSgd = expenses.reduce((s, e) => s + (e.sgd || 0), 0);
+  el.expTotal.innerHTML = expenses.length
+    ? `Total: <b>S$${totalSgd.toLocaleString(undefined, { maximumFractionDigits: 2 })}</b> · ${expenses.length} expense${expenses.length > 1 ? 's' : ''}`
+    : '';
+  if (!expenses.length) { el.expList.innerHTML = '<div class="hotel-empty">No expenses yet. Add one or scan a receipt — amounts auto-convert to SGD.</div>'; return; }
+  el.expList.innerHTML = expenses.map((e) => `
+    <div class="exp-item">
+      <div class="exp-icon">${e.cur === 'SGD' ? '🇸🇬' : '💱'}</div>
+      <div class="exp-info">
+        <div class="exp-merchant">${escHtml(e.merchant)}</div>
+        <div class="exp-meta">${escHtml(e.city || '—')}${e.date ? ` · ${e.date}` : ''}</div>
+      </div>
+      <div class="exp-amounts">
+        <div class="exp-orig">${escHtml(e.cur)} ${e.amount.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
+        <div class="exp-sgd">${e.sgd != null ? `≈ S$${e.sgd.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : ''}</div>
+      </div>
+      <button class="exp-del" data-del="${e.id}" title="Delete" aria-label="Delete ${escHtml(e.merchant)}">✕</button>
+    </div>`).join('');
+}
+async function addExpense() {
+  const merchant = (el.expMerchant.value || '').trim();
+  const amount = parseFloat(el.expAmount.value);
+  const cur = el.expCur.value;
+  if (!merchant || !amount || amount <= 0) { toast('Enter a merchant and amount'); return; }
+  let sgd = null;
+  const rates = await fetchRates();
+  if (cur === 'SGD') sgd = amount;
+  else if (rates && rates[cur]) sgd = amount / rates[cur];
+  expenses.unshift({ id: Date.now(), merchant, amount, cur, sgd: sgd != null ? +sgd.toFixed(2) : null, city: state.current?.name || '', date: new Date().toLocaleDateString() });
+  saveExpenses();
+  el.expMerchant.value = ''; el.expAmount.value = ''; el.expMerchant.focus();
+  toast('Expense added');
+}
+/* ---- Receipt OCR (Tesseract.js, loaded on demand) ---- */
+let tessLoading = null;
+function loadTesseract() {
+  if (window.Tesseract) return Promise.resolve();
+  if (tessLoading) return tessLoading;
+  tessLoading = new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
+    s.onload = () => res(); s.onerror = () => rej(new Error('load failed'));
+    document.head.appendChild(s);
+  });
+  return tessLoading;
+}
+function parseReceipt(text) {
+  const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
+  const merchant = (lines.find((l) => /[A-Za-z]{3,}/.test(l)) || lines[0] || '').slice(0, 40);
+  const symMap = { S$: 'SGD', HK$: 'HKD', NT$: 'TWD', A$: 'AUD', R$: 'BRL', RM: 'MYR', Rp: 'IDR', '€': 'EUR', '£': 'GBP', '¥': 'JPY', '₩': 'KRW', '₹': 'INR', '฿': 'THB', '₫': 'VND', '₱': 'PHP', '₺': 'TRY', '₽': 'RUB', $: 'USD' };
+  let cur = '';
+  const codeM = text.match(/\b(SGD|USD|EUR|GBP|JPY|KRW|INR|THB|VND|PHP|MYR|IDR|CNY|AUD|HKD|TWD|AED|CHF|CAD|BRL|MXN|TRY|RUB|SAR|QAR|NZD|ZAR)\b/);
+  if (codeM) cur = codeM[1];
+  else for (const [sym, code] of Object.entries(symMap)) if (text.includes(sym)) { cur = code; break; }
+  const toNum = (s) => { s = s.replace(/\s/g, ''); if (/,\d{2}$/.test(s)) s = s.replace(/\./g, '').replace(',', '.'); else s = s.replace(/,/g, ''); return parseFloat(s.replace(/[^0-9.]/g, '')); };
+  const decRe = /\d{1,3}(?:[ ,.]\d{3})*[.,]\d{2}/g;                 // amounts with cents
+  const broadRe = /\d{1,3}(?:[.,\s]\d{3})*(?:[.,]\d{1,2})?/g;        // also integer amounts (¥, ₩, ₫)
+  let amount = null;
+  // "total"/"amount due"/"grand total"/"nett" lines, but NOT "subtotal"; take the largest.
+  const totalLines = lines.filter((l) => /(grand\s*total|amount\s*due|balance\s*due|total\s*due|\btotal\b|\bnett?\b)/i.test(l) && !/sub\s*-?\s*total/i.test(l));
+  const tNums = totalLines.flatMap((l) => (l.match(broadRe) || []).map(toNum)).filter((n) => !isNaN(n) && n > 0);
+  if (tNums.length) amount = Math.max(...tNums);
+  if (amount == null) { // no total line: prefer decimal amounts, else any integer
+    let all = (text.match(decRe) || []).map(toNum).filter((n) => !isNaN(n));
+    if (!all.length) all = (text.match(broadRe) || []).map(toNum).filter((n) => !isNaN(n) && n >= 1);
+    if (all.length) amount = Math.max(...all);
+  }
+  return { merchant, amount: (amount != null && !isNaN(amount)) ? amount : null, cur };
+}
+async function runReceiptOCR(file) {
+  if (!file) return;
+  el.expStatus.hidden = false; el.expStatus.textContent = 'Loading receipt scanner…';
+  try {
+    await loadTesseract();
+    el.expStatus.textContent = 'Reading receipt… (this can take 10–20s)';
+    const dataUrl = await new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = rej; fr.readAsDataURL(file); });
+    const { data } = await window.Tesseract.recognize(dataUrl, 'eng');
+    const p = parseReceipt(data.text || '');
+    if (p.merchant) el.expMerchant.value = p.merchant;
+    if (p.amount != null) el.expAmount.value = p.amount;
+    if (p.cur && [...el.expCur.options].some((o) => o.value === p.cur)) el.expCur.value = p.cur;
+    el.expStatus.textContent = p.amount != null ? '✓ Extracted — check the fields and tap Add.' : 'Couldn’t read the total — please enter it manually.';
+  } catch { el.expStatus.textContent = 'Scan failed — please enter it manually.'; }
+}
+if (el.expAdd) {
+  expInitCurrencies();
+  el.expAdd.addEventListener('click', addExpense);
+  [el.expMerchant, el.expAmount].forEach((i) => i.addEventListener('keydown', (e) => { if (e.key === 'Enter') addExpense(); }));
+  el.expList.addEventListener('click', (e) => { const d = e.target.closest('[data-del]'); if (d) { expenses = expenses.filter((x) => String(x.id) !== d.dataset.del); saveExpenses(); } });
+  el.expReceipt.addEventListener('change', (e) => { if (e.target.files[0]) runReceiptOCR(e.target.files[0]); e.target.value = ''; });
+}
+
 function boot() {
   loadCities();
   renderSaved();
   loadHotels();
   renderHotels();
+  loadExpenses();
+  renderExpenses();
   initMap();
   useMyLocation();
   if (state.cities.length) refreshSavedTemps();

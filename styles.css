@@ -508,6 +508,27 @@ body {
 .wd-phone { font-size: 13px; color: var(--muted); margin-top: 4px; }
 .wd-more { margin-top: 4px; }
 
+/* expense tracker */
+.exp-form { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+.exp-amt { flex: 0 0 110px; min-width: 90px; }
+.exp-cur { flex: 0 0 92px; min-width: 80px; cursor: pointer; }
+.exp-cur option { background: #26184f; color: var(--text); }
+.exp-scan { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--accent); cursor: pointer; border: 1px solid var(--stroke); background: rgba(0,0,0,0.16); padding: 10px 13px; border-radius: 12px; }
+.exp-scan:hover { border-color: var(--accent); }
+.exp-status { font-size: 12.5px; color: var(--muted); margin-bottom: 10px; }
+.exp-total { font-size: 14px; color: var(--muted); margin-bottom: 12px; }
+.exp-total b { color: var(--text); font-size: 16px; }
+.exp-item { display: flex; align-items: center; gap: 12px; padding: 11px 13px; background: rgba(0,0,0,0.16); border: 1px solid var(--stroke); border-radius: var(--radius-sm); margin-bottom: 9px; }
+.exp-icon { font-size: 18px; flex-shrink: 0; }
+.exp-info { flex: 1; min-width: 0; }
+.exp-merchant { font-size: 14.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.exp-meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.exp-amounts { text-align: right; flex-shrink: 0; }
+.exp-orig { font-size: 14px; font-weight: 600; white-space: nowrap; }
+.exp-sgd { font-size: 12px; color: var(--accent); margin-top: 2px; white-space: nowrap; }
+.exp-del { flex-shrink: 0; border: none; background: none; color: var(--faint); cursor: pointer; font-size: 15px; padding: 6px; border-radius: 8px; }
+.exp-del:hover { color: #ff8a8a; background: rgba(255,120,120,0.12); }
+
 /* remember my hotel room */
 .hotel-form { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
 .hotel-in {

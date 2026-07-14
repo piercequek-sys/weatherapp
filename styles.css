@@ -515,6 +515,11 @@ body {
 .exp-cur option { background: #26184f; color: var(--text); }
 .exp-scan { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--accent); cursor: pointer; border: 1px solid var(--stroke); background: rgba(0,0,0,0.16); padding: 10px 13px; border-radius: 12px; }
 .exp-scan:hover { border-color: var(--accent); }
+.exp-export { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--text); cursor: pointer; border: 1px solid var(--stroke); background: rgba(0,0,0,0.16); padding: 10px 13px; border-radius: 12px; }
+.exp-export:hover { border-color: var(--accent); color: var(--accent); }
+.exp-group { margin-bottom: 14px; }
+.exp-group-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 12.5px; font-weight: 700; letter-spacing: 0.02em; text-transform: uppercase; color: var(--muted); padding: 0 3px 8px; }
+.exp-group-sub { color: var(--text); font-weight: 700; }
 .exp-status { font-size: 12.5px; color: var(--muted); margin-bottom: 10px; }
 .exp-total { font-size: 14px; color: var(--muted); margin-bottom: 12px; }
 .exp-total b { color: var(--text); font-size: 16px; }

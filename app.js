@@ -84,7 +84,7 @@ const el = {
   hotelCity: $('hotelCity'), hotelName: $('hotelName'), hotelRoom: $('hotelRoom'), hotelAdd: $('hotelAdd'), hotelList: $('hotelList'),
   workdayBody: $('workdayBody'), packingBody: $('packingBody'), essentialsBody: $('essentialsBody'), heroAqi: $('heroAqi'),
   expMerchant: $('expMerchant'), expAmount: $('expAmount'), expCur: $('expCur'), expAdd: $('expAdd'),
-  expReceipt: $('expReceipt'), expStatus: $('expStatus'), expTotal: $('expTotal'), expList: $('expList'),
+  expReceipt: $('expReceipt'), expStatus: $('expStatus'), expTotal: $('expTotal'), expList: $('expList'), expExport: $('expExport'),
 };
 
 /* ---------- Helpers ---------- */
@@ -2710,26 +2710,53 @@ function setExpCurDefault(cc) {
   const code = COUNTRY_INFO[(cc || '').toUpperCase()]?.[0];
   if (code && [...el.expCur.options].some((o) => o.value === code)) el.expCur.value = code;
 }
+const sgdFmt = (n) => `S$${n.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+function expItemHtml(e) {
+  return `<div class="exp-item">
+      <div class="exp-icon">${e.cur === 'SGD' ? '🇸🇬' : '💱'}</div>
+      <div class="exp-info">
+        <div class="exp-merchant">${escHtml(e.merchant)}</div>
+        <div class="exp-meta">${e.date || ''}</div>
+      </div>
+      <div class="exp-amounts">
+        <div class="exp-orig">${escHtml(e.cur)} ${e.amount.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
+        <div class="exp-sgd">${e.sgd != null ? `≈ ${sgdFmt(e.sgd)}` : ''}</div>
+      </div>
+      <button class="exp-del" data-del="${e.id}" title="Delete" aria-label="Delete ${escHtml(e.merchant)}">✕</button>
+    </div>`;
+}
 function renderExpenses() {
   if (!el.expList) return;
   const totalSgd = expenses.reduce((s, e) => s + (e.sgd || 0), 0);
   el.expTotal.innerHTML = expenses.length
-    ? `Total: <b>S$${totalSgd.toLocaleString(undefined, { maximumFractionDigits: 2 })}</b> · ${expenses.length} expense${expenses.length > 1 ? 's' : ''}`
+    ? `Total: <b>${sgdFmt(totalSgd)}</b> · ${expenses.length} expense${expenses.length > 1 ? 's' : ''}`
     : '';
+  if (el.expExport) el.expExport.style.display = expenses.length ? '' : 'none';
   if (!expenses.length) { el.expList.innerHTML = '<div class="hotel-empty">No expenses yet. Add one or scan a receipt — amounts auto-convert to SGD.</div>'; return; }
-  el.expList.innerHTML = expenses.map((e) => `
-    <div class="exp-item">
-      <div class="exp-icon">${e.cur === 'SGD' ? '🇸🇬' : '💱'}</div>
-      <div class="exp-info">
-        <div class="exp-merchant">${escHtml(e.merchant)}</div>
-        <div class="exp-meta">${escHtml(e.city || '—')}${e.date ? ` · ${e.date}` : ''}</div>
-      </div>
-      <div class="exp-amounts">
-        <div class="exp-orig">${escHtml(e.cur)} ${e.amount.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
-        <div class="exp-sgd">${e.sgd != null ? `≈ S$${e.sgd.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : ''}</div>
-      </div>
-      <button class="exp-del" data-del="${e.id}" title="Delete" aria-label="Delete ${escHtml(e.merchant)}">✕</button>
-    </div>`).join('');
+  // Group by city (in recency order — expenses are newest-first).
+  const groups = {}; const order = [];
+  expenses.forEach((e) => { const c = e.city || 'Other'; if (!groups[c]) { groups[c] = []; order.push(c); } groups[c].push(e); });
+  el.expList.innerHTML = order.map((c) => {
+    const sub = groups[c].reduce((s, e) => s + (e.sgd || 0), 0);
+    return `<div class="exp-group">
+      <div class="exp-group-head"><span>📍 ${escHtml(c)}</span><span class="exp-group-sub">${sgdFmt(sub)}</span></div>
+      ${groups[c].map(expItemHtml).join('')}
+    </div>`;
+  }).join('');
+}
+function exportExpensesCSV() {
+  if (!expenses.length) { toast('No expenses to export'); return; }
+  const cell = (v) => { v = String(v ?? ''); return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v; };
+  const rows = [['Date', 'City', 'Merchant', 'Currency', 'Amount', 'SGD']];
+  expenses.slice().reverse().forEach((e) => rows.push([e.date || '', e.city || '', e.merchant, e.cur, e.amount, e.sgd ?? '']));
+  const csv = rows.map((r) => r.map(cell).join(',')).join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `expenses-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  toast('Exported CSV');
 }
 async function addExpense() {
   const merchant = (el.expMerchant.value || '').trim();
@@ -2802,6 +2829,7 @@ if (el.expAdd) {
   [el.expMerchant, el.expAmount].forEach((i) => i.addEventListener('keydown', (e) => { if (e.key === 'Enter') addExpense(); }));
   el.expList.addEventListener('click', (e) => { const d = e.target.closest('[data-del]'); if (d) { expenses = expenses.filter((x) => String(x.id) !== d.dataset.del); saveExpenses(); } });
   el.expReceipt.addEventListener('change', (e) => { if (e.target.files[0]) runReceiptOCR(e.target.files[0]); e.target.value = ''; });
+  if (el.expExport) el.expExport.addEventListener('click', exportExpensesCSV);
 }
 
 function boot() {

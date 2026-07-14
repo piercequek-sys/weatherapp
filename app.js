@@ -1485,11 +1485,38 @@ function renderFood(place) {
     return;
   }
   const chips = f.dishes.map((d) => `<span class="food-chip">${d}</span>`).join('');
-  const places = f.places.map((p, i) => `<li><span class="tv-rank">${i + 1}</span><div><div class="tv-a-name">${p.name}</div><div class="tv-a-desc">${p.note}</div></div></li>`).join('');
+  const places = f.places.map((p, i) => `<li class="tv-attraction" data-name="${attrEsc(p.name)}" data-context="${attrEsc(city)}" role="button" tabindex="0" title="Show ${attrEsc(p.name)} on the map"><span class="tv-rank">${i + 1}</span><div><div class="tv-a-name">${p.name} <span class="tv-a-pin">📍</span></div><div class="tv-a-desc">${p.note}</div></div></li>`).join('');
   el.foodBody.innerHTML = `<div class="food-label">🍜 Must-eat in ${city}</div>
     <div class="food-dishes">${chips}</div>
     <div class="food-label">📍 Top 5 places to eat</div>
     <ol class="tv-attractions">${places}</ol>`;
+}
+// Click a food place → pin it on the map. Restaurants/markets have patchy OSM
+// coverage, so try a few query forms and fall back to the city if not pinpointed.
+async function showPlaceOnMap(name, city) {
+  toast(`Locating ${name}…`);
+  const clean = name.replace(/\s*\(.*?\)\s*/g, ' ').trim();
+  const firstPart = clean.split(/\s+[&/]\s+|,/)[0].trim();
+  const geo = async (q) => { try { const r = await fetch(`https://nominatim.openstreetmap.org/search?q=${enc(q)}&format=json&limit=1`); const j = await r.json(); return j[0]; } catch { return null; } };
+  const queries = [...new Set([`${clean}, ${city}`, `${clean} ${city}`, `${firstPart}, ${city}`])];
+  let hit = null;
+  for (const q of queries) { hit = await geo(q); if (hit) break; }
+  let approx = false;
+  if (!hit) { hit = await geo(city); approx = true; }
+  if (!hit) { toast(`Couldn't find ${name} on the map`); return; }
+  placeAttractionMarker(parseFloat(hit.lat), parseFloat(hit.lon), approx ? `${name} (approx.)` : name);
+  if (approx) toast(`Couldn't pinpoint ${name} — showing ${city}`);
+}
+if (el.foodBody) {
+  el.foodBody.addEventListener('click', (e) => {
+    const li = e.target.closest('.tv-attraction');
+    if (li) showPlaceOnMap(li.dataset.name, li.dataset.context);
+  });
+  el.foodBody.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const li = e.target.closest('.tv-attraction');
+    if (li) { e.preventDefault(); showPlaceOnMap(li.dataset.name, li.dataset.context); }
+  });
 }
 
 /* ============================================================

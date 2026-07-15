@@ -9,7 +9,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
         integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-  <link rel="stylesheet" href="styles.css?v=20260714b" />
+  <link rel="stylesheet" href="styles.css?v=20260714c" />
 </head>
 <body>
   <div class="app" id="app">
@@ -210,18 +210,23 @@
 
       <section class="forecast glass" data-nav="Cycling">
         <div class="section-head">
-          <h2>Cycling <span class="cycling-brand">· MAAP rides</span></h2>
-          <a class="strava-link" href="https://www.strava.com/clubs/293623" target="_blank" rel="noopener" title="MAAP CC — official schedule on Strava">MAAP CC on Strava ↗</a>
+          <h2>Cycling <span class="cycling-brand">· Group rides</span></h2>
+          <span class="section-sub">MAAP &amp; Rapha schedules</span>
         </div>
-        <div class="cycling-body" id="cyclingBody"></div>
-      </section>
-
-      <section class="forecast glass" data-nav="Rapha">
-        <div class="section-head">
-          <h2>Rapha Rides <span class="rapha-brand">· RCC clubhouse</span></h2>
-          <a class="rapha-link" href="https://events.rapha.cc/" target="_blank" rel="noopener" title="Rapha events — official schedule">Rapha events ↗</a>
+        <div class="ride-group">
+          <div class="ride-group-head">
+            <h3 class="ride-group-title"><span class="ride-group-dot maap"></span>MAAP</h3>
+            <a class="strava-link" href="https://www.strava.com/clubs/293623" target="_blank" rel="noopener" title="MAAP CC — official schedule on Strava">MAAP CC on Strava ↗</a>
+          </div>
+          <div class="cycling-body" id="cyclingBody"></div>
         </div>
-        <div class="cycling-body" id="raphaBody"></div>
+        <div class="ride-group">
+          <div class="ride-group-head">
+            <h3 class="ride-group-title"><span class="ride-group-dot rapha"></span>Rapha <span class="rapha-brand">· RCC clubhouse</span></h3>
+            <a class="rapha-link" href="https://events.rapha.cc/" target="_blank" rel="noopener" title="Rapha events — official schedule">Rapha events ↗</a>
+          </div>
+          <div class="cycling-body" id="raphaBody"></div>
+        </div>
       </section>
 
       <section class="forecast glass" data-nav="Spotify">
@@ -271,6 +276,6 @@
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
           integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-  <script src="app.js?v=20260714b"></script>
+  <script src="app.js?v=20260714c"></script>
 </body>
 </html>

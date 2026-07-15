@@ -84,6 +84,7 @@ const el = {
   linksBody: $('linksBody'), newsBody: $('newsBody'), spotifyAccount: $('spotifyAccount'),
   hotelCity: $('hotelCity'), hotelName: $('hotelName'), hotelRoom: $('hotelRoom'), hotelAdd: $('hotelAdd'), hotelList: $('hotelList'),
   workdayBody: $('workdayBody'), packingBody: $('packingBody'), essentialsBody: $('essentialsBody'), heroAqi: $('heroAqi'),
+  calAccounts: $('calAccounts'), calBody: $('calBody'),
   expMerchant: $('expMerchant'), expAmount: $('expAmount'), expCur: $('expCur'), expAdd: $('expAdd'),
   expReceipt: $('expReceipt'), expStatus: $('expStatus'), expTotal: $('expTotal'), expList: $('expList'), expExport: $('expExport'),
 };
@@ -2934,6 +2935,263 @@ function buildSectionNav() {
   sync();
 }
 
+/* ============================================================
+   Calendar — Google (GIS) + Microsoft (MSAL) client-side OAuth.
+   No backend/secret: both use public Client IDs. Read-only calendar
+   scopes; access tokens live in memory only. The user supplies their
+   own Client ID(s) via the setup panel (stored in localStorage).
+   ============================================================ */
+const CAL = { gKey: 'cal.gClientId', mKey: 'cal.mClientId', gFlag: 'cal.gConnected' };
+const CAL_GIS = 'https://accounts.google.com/gsi/client';
+const CAL_MSAL = 'https://alcdn.msauth.net/browser/2.38.4/js/msal-browser.min.js';
+const CAL_SCOPE_G = 'https://www.googleapis.com/auth/calendar.readonly';
+const CAL_SCOPE_M = ['Calendars.Read'];
+const calGet = (k) => localStorage.getItem(k) || '';
+const calSet = (k, v) => { v ? localStorage.setItem(k, v) : localStorage.removeItem(k); };
+const calOrigin = () => location.origin;                         // Google: Authorized JS origin
+const calRedirect = () => location.origin + location.pathname;   // Microsoft: SPA redirect URI
+
+let gToken = null, gTokenExp = 0, gTokenClient = null;
+let msalApp = null, msAccount = null;
+let calRendering = false;
+
+function loadScriptOnce(src) {
+  return new Promise((res, rej) => {
+    if ([...document.scripts].some((s) => s.src === src)) return res();
+    const s = document.createElement('script');
+    s.src = src; s.async = true; s.defer = true;
+    s.onload = () => res();
+    s.onerror = () => rej(new Error('Failed to load ' + src));
+    document.head.appendChild(s);
+  });
+}
+
+/* ---- Google ---- */
+async function gEnsureClient() {
+  const cid = calGet(CAL.gKey);
+  if (!cid) throw new Error('no-google-client');
+  await loadScriptOnce(CAL_GIS);
+  if (!gTokenClient) {
+    gTokenClient = google.accounts.oauth2.initTokenClient({ client_id: cid, scope: CAL_SCOPE_G, callback: () => {} });
+  }
+  return gTokenClient;
+}
+function gRequestToken(prompt) {
+  return new Promise((resolve, reject) => {
+    gEnsureClient().then((client) => {
+      client.callback = (resp) => {
+        if (resp.error) return reject(new Error(resp.error));
+        gToken = resp.access_token;
+        gTokenExp = Date.now() + (Number(resp.expires_in || 3600) - 60) * 1000;
+        calSet(CAL.gFlag, '1');
+        resolve(resp.access_token);
+      };
+      client.requestAccessToken({ prompt });
+    }).catch(reject);
+  });
+}
+function gConnected() { return !!gToken && Date.now() < gTokenExp; }
+async function gLogin() {
+  try { await gRequestToken('consent'); renderCalendar(); }
+  catch { toast('Add your Google Client ID in Calendar setup first'); }
+}
+function gLogout() {
+  try { if (gToken && window.google) google.accounts.oauth2.revoke(gToken, () => {}); } catch {}
+  gToken = null; gTokenExp = 0; calSet(CAL.gFlag, '');
+  renderCalendar();
+}
+async function gFetchEvents(timeMin, timeMax) {
+  if (!gConnected()) return [];
+  const qs = new URLSearchParams({ timeMin: timeMin.toISOString(), timeMax: timeMax.toISOString(), singleEvents: 'true', orderBy: 'startTime', maxResults: '50' });
+  const r = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?${qs}`, { headers: { Authorization: 'Bearer ' + gToken } });
+  if (!r.ok) throw new Error('gcal ' + r.status);
+  const j = await r.json();
+  return (j.items || []).map((e) => ({
+    source: 'google',
+    title: e.summary || '(no title)',
+    location: e.location || '',
+    allDay: !!(e.start && e.start.date),
+    start: new Date(e.start.dateTime || (e.start.date + 'T00:00:00')),
+    end: new Date((e.end && (e.end.dateTime || e.end.date + 'T00:00:00')) || Date.now()),
+    link: e.htmlLink || '',
+  }));
+}
+
+/* ---- Microsoft ---- */
+async function msEnsureApp() {
+  const cid = calGet(CAL.mKey);
+  if (!cid) throw new Error('no-ms-client');
+  await loadScriptOnce(CAL_MSAL);
+  if (!msalApp) {
+    msalApp = new msal.PublicClientApplication({
+      auth: { clientId: cid, authority: 'https://login.microsoftonline.com/common', redirectUri: calRedirect() },
+      cache: { cacheLocation: 'localStorage' },
+    });
+    if (msalApp.initialize) await msalApp.initialize();
+    const accts = msalApp.getAllAccounts();
+    if (accts.length) msAccount = accts[0];
+  }
+  return msalApp;
+}
+function msConnected() { return !!msAccount; }
+async function msLogin() {
+  try {
+    const app = await msEnsureApp();
+    const res = await app.loginPopup({ scopes: CAL_SCOPE_M, prompt: 'select_account' });
+    msAccount = res.account;
+    renderCalendar();
+  } catch { toast('Add your Microsoft Client ID in Calendar setup first, then retry'); }
+}
+async function msLogout() {
+  try { if (msalApp && msAccount) await msalApp.logoutPopup({ account: msAccount }); } catch {}
+  msAccount = null; renderCalendar();
+}
+async function msToken() {
+  const app = await msEnsureApp();
+  if (!msAccount) return null;
+  try { return (await app.acquireTokenSilent({ account: msAccount, scopes: CAL_SCOPE_M })).accessToken; }
+  catch { return (await app.acquireTokenPopup({ scopes: CAL_SCOPE_M })).accessToken; }
+}
+async function msFetchEvents(timeMin, timeMax) {
+  const token = await msToken();
+  if (!token) return [];
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+  const qs = new URLSearchParams({ startDateTime: timeMin.toISOString(), endDateTime: timeMax.toISOString(), '$orderby': 'start/dateTime', '$top': '50' });
+  const r = await fetch(`https://graph.microsoft.com/v1.0/me/calendarView?${qs}`, { headers: { Authorization: 'Bearer ' + token, Prefer: `outlook.timezone="${tz}"` } });
+  if (!r.ok) throw new Error('graph ' + r.status);
+  const j = await r.json();
+  // With the Prefer header, dateTimes come back as naive wall-clock in `tz` → parse as local.
+  return (j.value || []).map((e) => ({
+    source: 'microsoft',
+    title: e.subject || '(no title)',
+    location: (e.location && e.location.displayName) || '',
+    allDay: !!e.isAllDay,
+    start: new Date((e.start.dateTime || '').replace(/(\.\d+)?Z?$/, '')),
+    end: new Date((e.end.dateTime || '').replace(/(\.\d+)?Z?$/, '')),
+    link: e.webLink || '',
+  }));
+}
+
+/* ---- Shared render ---- */
+function calDayLabel(d) {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const dd = new Date(d); dd.setHours(0, 0, 0, 0);
+  const diff = Math.round((dd - today) / 86400000);
+  if (diff === 0) return 'Today';
+  if (diff === 1) return 'Tomorrow';
+  return dd.toLocaleDateString(undefined, { weekday: 'long' });
+}
+const calTime = (d) => d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+const CAL_G_LOGO = '<svg viewBox="0 0 24 24" width="15" height="15"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.27-4.74 3.27-8.1z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.99.66-2.26 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23z"/><path fill="#FBBC05" d="M5.84 14.1a6.6 6.6 0 0 1 0-4.2V7.06H2.18a11 11 0 0 0 0 9.88l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84C6.71 7.3 9.14 5.38 12 5.38z"/></svg>';
+const CAL_M_LOGO = '<svg viewBox="0 0 23 23" width="14" height="14"><path fill="#f25022" d="M1 1h10v10H1z"/><path fill="#7fba00" d="M12 1h10v10H12z"/><path fill="#00a4ef" d="M1 12h10v10H1z"/><path fill="#ffb900" d="M12 12h10v10H12z"/></svg>';
+
+function calRenderAccounts() {
+  const g = gConnected(), m = msConnected();
+  const gBtn = g
+    ? `<button class="cal-login g connected" data-cal="g-logout">${CAL_G_LOGO}<span>Google connected · sign out</span></button>`
+    : `<button class="cal-login g" data-cal="g-login">${CAL_G_LOGO}<span>Connect Google</span></button>`;
+  const mBtn = m
+    ? `<button class="cal-login m connected" data-cal="m-logout">${CAL_M_LOGO}<span>Microsoft connected · sign out</span></button>`
+    : `<button class="cal-login m" data-cal="m-login">${CAL_M_LOGO}<span>Connect Outlook</span></button>`;
+  el.calAccounts.innerHTML = `
+    <div class="cal-btns">${gBtn}${mBtn}
+      ${(g || m) ? '<button class="cal-refresh" data-cal="refresh" title="Refresh meetings">↻</button>' : ''}
+    </div>
+    <details class="cal-setup"${(g || m) ? '' : ' open'}>
+      <summary>Setup — one-time, uses your own free OAuth apps</summary>
+      <p class="cal-hint"><b>Google Calendar</b> — create an OAuth Client ID (Google Cloud Console → APIs &amp; Services → Credentials → OAuth client → <i>Web application</i>), enable the <i>Google Calendar API</i>, and add this <b>Authorized JavaScript origin</b>:</p>
+      <div class="cal-uri">Origin · <code>${calOrigin()}</code></div>
+      <input id="calGId" class="cal-input" placeholder="Google Client ID (…apps.googleusercontent.com)" value="${calGet(CAL.gKey)}" spellcheck="false" autocomplete="off">
+      <p class="cal-hint cal-warn">Calendar is a “sensitive” scope: until the app is verified by Google, only accounts you add as <b>Test users</b> (OAuth consent screen) can sign in.</p>
+      <p class="cal-hint"><b>Outlook / Microsoft 365</b> — register an app (Azure Portal → App registrations → <i>Single-page application</i>) with the <b>Redirect URI</b> below and delegated permission <code>Calendars.Read</code>:</p>
+      <div class="cal-uri">Redirect URI · <code>${calRedirect()}</code></div>
+      <input id="calMId" class="cal-input" placeholder="Microsoft Application (client) ID" value="${calGet(CAL.mKey)}" spellcheck="false" autocomplete="off">
+      <button class="cal-save" data-cal="save">Save Client IDs</button>
+    </details>`;
+}
+
+async function renderCalendar() {
+  if (!el.calBody) return;
+  calRenderAccounts();
+  if (!gConnected() && !msConnected()) {
+    el.calBody.innerHTML = `<div class="cal-empty"><div class="cal-empty-ic">📅</div><div><strong>No calendar connected</strong><span>Connect Google and/or Outlook above to see your meetings for the next 3 days.</span></div></div>`;
+    return;
+  }
+  if (calRendering) return;
+  calRendering = true;
+  el.calBody.innerHTML = '<div class="cal-loading"><div class="spinner"></div><p>Loading your meetings…</p></div>';
+  const now = new Date();
+  const start = new Date(now); // upcoming only
+  const end = new Date(); end.setHours(0, 0, 0, 0); end.setDate(end.getDate() + 3); // through the next 3 calendar days
+  try {
+    const results = await Promise.allSettled([
+      gConnected() ? gFetchEvents(start, end) : Promise.resolve([]),
+      msConnected() ? msFetchEvents(start, end) : Promise.resolve([]),
+    ]);
+    const events = results.flatMap((r) => (r.status === 'fulfilled' ? r.value : []))
+      .filter((e) => e.end > now)                 // drop meetings already finished
+      .sort((a, b) => a.start - b.start);
+    const failed = results.some((r) => r.status === 'rejected');
+
+    if (!events.length) {
+      el.calBody.innerHTML = `<div class="cal-empty"><div class="cal-empty-ic">✅</div><div><strong>Nothing scheduled</strong><span>No meetings in the next 3 days${failed ? ' (some calendars failed to load).' : '.'}</span></div></div>`;
+      return;
+    }
+    // Group by calendar day
+    const groups = new Map();
+    for (const ev of events) {
+      const key = new Date(ev.start); key.setHours(0, 0, 0, 0);
+      const k = key.getTime();
+      if (!groups.has(k)) groups.set(k, []);
+      groups.get(k).push(ev);
+    }
+    const html = [...groups.entries()].map(([k, evs]) => {
+      const items = evs.map((ev) => {
+        const when = ev.allDay ? 'All day' : `${calTime(ev.start)} – ${calTime(ev.end)}`;
+        const badge = ev.source === 'google' ? `<span class="cal-src g" title="Google Calendar">${CAL_G_LOGO}</span>` : `<span class="cal-src m" title="Outlook">${CAL_M_LOGO}</span>`;
+        const title = ev.link ? `<a href="${ev.link}" target="_blank" rel="noopener">${escHtml(ev.title)}</a>` : escHtml(ev.title);
+        return `<div class="cal-event">
+          <div class="cal-when">${when}</div>
+          <div class="cal-info"><div class="cal-title">${badge}${title}</div>${ev.location ? `<div class="cal-loc">📍 ${escHtml(ev.location)}</div>` : ''}</div>
+        </div>`;
+      }).join('');
+      return `<div class="cal-day"><div class="cal-day-head">${calDayLabel(new Date(k))} <span class="cal-day-date">${new Date(k).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}</span></div>${items}</div>`;
+    }).join('');
+    el.calBody.innerHTML = (failed ? '<div class="cal-hint cal-warn">Some calendars couldn’t be loaded — showing what’s available.</div>' : '') + html;
+  } catch {
+    el.calBody.innerHTML = `<div class="cal-empty"><div class="cal-empty-ic">⚠️</div><div><strong>Couldn’t load meetings</strong><span>Try reconnecting your account.</span></div></div>`;
+  } finally {
+    calRendering = false;
+  }
+}
+
+el.calAccounts.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-cal]');
+  if (!btn) return;
+  const act = btn.dataset.cal;
+  if (act === 'g-login') return gLogin();
+  if (act === 'g-logout') return gLogout();
+  if (act === 'm-login') return msLogin();
+  if (act === 'm-logout') return msLogout();
+  if (act === 'refresh') return void renderCalendar();
+  if (act === 'save') {
+    calSet(CAL.gKey, document.getElementById('calGId').value.trim());
+    calSet(CAL.mKey, document.getElementById('calMId').value.trim());
+    gTokenClient = null; msalApp = null; // rebuild with new IDs
+    toast('Client IDs saved');
+    renderCalendar();
+  }
+});
+
+/* Restore sessions on load: Microsoft from its cached account, Google via a
+   silent token if previously consented. Falls back to the disconnected UI. */
+async function calBoot() {
+  renderCalendar();
+  if (calGet(CAL.mKey)) { try { await msEnsureApp(); } catch {} }
+  if (calGet(CAL.gKey) && calGet(CAL.gFlag)) { try { await gRequestToken(''); } catch {} }
+  if (msConnected() || gConnected()) renderCalendar();
+}
+
 function boot() {
   buildSectionNav();
   loadCities();
@@ -2947,5 +3205,6 @@ function boot() {
   if (state.cities.length) refreshSavedTemps();
   setInterval(() => { if (state.cities.length) renderSaved(); updateHeroTime(); }, 60000); // keep clocks current
   spotifyHandleRedirect().then(renderSpotify);
+  calBoot();
 }
 boot();

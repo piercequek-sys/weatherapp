@@ -2832,7 +2832,48 @@ if (el.expAdd) {
   if (el.expExport) el.expExport.addEventListener('click', exportExpensesCSV);
 }
 
+function buildSectionNav() {
+  const nav = document.getElementById('sectionNav');
+  if (!nav) return;
+  const secs = [...document.querySelectorAll('[data-nav]')];
+  const links = new Map();
+  secs.forEach((sec, i) => {
+    if (!sec.id) sec.id = 'sec-' + i;
+    const a = document.createElement('a');
+    a.href = '#' + sec.id;
+    a.textContent = sec.dataset.nav;
+    a.addEventListener('click', () => { links.forEach((l) => l.classList.remove('active')); a.classList.add('active'); });
+    nav.appendChild(a);
+    links.set(sec, a);
+  });
+  // Highlight the section nearest the top of the viewport as you scroll.
+  // Skip sticky sections (e.g. the desktop map) — their top never scrolls past.
+  let ticking = false;
+  const onScroll = () => {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(() => {
+      const cut = 90; // just below the sticky nav
+      const spy = secs.filter((s) => getComputedStyle(s).position !== 'sticky');
+      let current = spy[0];
+      for (const sec of spy) {
+        if (sec.getBoundingClientRect().top <= cut) current = sec; else break;
+      }
+      links.forEach((l) => l.classList.remove('active'));
+      const active = links.get(current);
+      if (active) {
+        active.classList.add('active');
+        active.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      }
+      ticking = false;
+    });
+  };
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+}
+
 function boot() {
+  buildSectionNav();
   loadCities();
   renderSaved();
   loadHotels();

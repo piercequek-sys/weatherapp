@@ -9,7 +9,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
         integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-  <link rel="stylesheet" href="styles.css?v=20260714" />
+  <link rel="stylesheet" href="styles.css?v=20260714b" />
 </head>
 <body>
   <div class="app" id="app">
@@ -52,7 +52,8 @@
 
     <!-- ============ MAIN ============ -->
     <main class="main">
-      <section class="hero glass" id="hero">
+      <nav class="section-nav" id="sectionNav" aria-label="Jump to section"></nav>
+      <section class="hero glass" id="hero" data-nav="Now">
         <div class="hero-loading" id="heroLoading">
           <div class="spinner"></div>
           <p>Locating you…</p>
@@ -89,7 +90,7 @@
         </div>
       </section>
 
-      <section class="forecast glass">
+      <section class="forecast glass" data-nav="Hourly">
         <div class="section-head">
           <h2>Hourly</h2>
           <span class="section-sub" id="hourlySub">Next 24 hours</span>
@@ -97,14 +98,14 @@
         <div class="hourly" id="hourly"></div>
       </section>
 
-      <section class="forecast glass">
+      <section class="forecast glass" data-nav="7-Day">
         <div class="section-head">
           <h2>7-Day Forecast</h2>
         </div>
         <div class="daily" id="daily"></div>
       </section>
 
-      <section class="forecast glass">
+      <section class="forecast glass" data-nav="Packing">
         <div class="section-head">
           <h2>Packing Suggestions <span class="cycling-brand">· 🎒</span></h2>
           <span class="section-sub">Based on the forecast</span>
@@ -112,7 +113,7 @@
         <div class="cycling-body" id="packingBody"></div>
       </section>
 
-      <section class="forecast glass travel">
+      <section class="forecast glass travel" data-nav="Travel">
         <div class="section-head">
           <h2>Travel <span class="travel-country" id="travelCountry"></span></h2>
           <span class="section-sub" id="travelSub">Based on your selected location</span>
@@ -125,7 +126,7 @@
         </div>
       </section>
 
-      <section class="forecast glass">
+      <section class="forecast glass" data-nav="Essentials">
         <div class="section-head">
           <h2>Country Essentials <span class="cycling-brand">· Know before you go</span></h2>
           <span class="section-sub">Plugs, water, driving &amp; more</span>
@@ -133,7 +134,7 @@
         <div class="cycling-body" id="essentialsBody"></div>
       </section>
 
-      <section class="forecast glass">
+      <section class="forecast glass" data-nav="Workday">
         <div class="section-head">
           <h2>Workday Office <span class="cycling-brand">· 🏢</span></h2>
           <span class="section-sub">Nearest to your location</span>
@@ -141,7 +142,7 @@
         <div class="cycling-body" id="workdayBody"></div>
       </section>
 
-      <section class="forecast glass">
+      <section class="forecast glass" data-nav="Hotel">
         <div class="section-head">
           <h2>Remember My Hotel Room <span class="cycling-brand">· 🏨</span></h2>
           <span class="section-sub">Saved on this device</span>
@@ -155,7 +156,7 @@
         <div class="hotel-list" id="hotelList"></div>
       </section>
 
-      <section class="forecast glass">
+      <section class="forecast glass" data-nav="Expenses">
         <div class="section-head">
           <h2>Expense Tracker <span class="cycling-brand">· 💳</span></h2>
           <span class="section-sub">Auto-converted to SGD</span>
@@ -175,7 +176,7 @@
         <div class="exp-list" id="expList"></div>
       </section>
 
-      <section class="forecast glass">
+      <section class="forecast glass" data-nav="News">
         <div class="section-head">
           <h2>News <span class="cycling-brand">· Top headlines</span></h2>
           <span class="section-sub">Live from Google News</span>
@@ -183,7 +184,7 @@
         <div class="news-grid" id="newsBody"></div>
       </section>
 
-      <section class="forecast glass">
+      <section class="forecast glass" data-nav="Events">
         <div class="section-head">
           <h2>Events <span class="cycling-brand">· Festivals &amp; happenings</span></h2>
           <span class="section-sub">Current &amp; upcoming</span>
@@ -191,7 +192,7 @@
         <div class="cycling-body" id="eventsBody"></div>
       </section>
 
-      <section class="forecast glass">
+      <section class="forecast glass" data-nav="Transport">
         <div class="section-head">
           <h2>Transportation <span class="cycling-brand">· Airport → city</span></h2>
           <span class="section-sub">Getting into town</span>
@@ -199,7 +200,7 @@
         <div class="cycling-body" id="transportBody"></div>
       </section>
 
-      <section class="forecast glass">
+      <section class="forecast glass" data-nav="Food">
         <div class="section-head">
           <h2>Food <span class="cycling-brand">· Where &amp; what to eat</span></h2>
           <span class="section-sub">Must-eats &amp; top spots</span>
@@ -207,7 +208,7 @@
         <div class="cycling-body" id="foodBody"></div>
       </section>
 
-      <section class="forecast glass">
+      <section class="forecast glass" data-nav="Cycling">
         <div class="section-head">
           <h2>Cycling <span class="cycling-brand">· MAAP rides</span></h2>
           <a class="strava-link" href="https://www.strava.com/clubs/293623" target="_blank" rel="noopener" title="MAAP CC — official schedule on Strava">MAAP CC on Strava ↗</a>
@@ -215,7 +216,7 @@
         <div class="cycling-body" id="cyclingBody"></div>
       </section>
 
-      <section class="forecast glass">
+      <section class="forecast glass" data-nav="Rapha">
         <div class="section-head">
           <h2>Rapha Rides <span class="rapha-brand">· RCC clubhouse</span></h2>
           <a class="rapha-link" href="https://events.rapha.cc/" target="_blank" rel="noopener" title="Rapha events — official schedule">Rapha events ↗</a>
@@ -223,7 +224,7 @@
         <div class="cycling-body" id="raphaBody"></div>
       </section>
 
-      <section class="forecast glass">
+      <section class="forecast glass" data-nav="Spotify">
         <div class="section-head">
           <h2>Spotify <span class="spotify-brand">· Music</span></h2>
           <span class="section-sub">Player + your account</span>
@@ -238,7 +239,7 @@
         </div>
       </section>
 
-      <section class="forecast glass">
+      <section class="forecast glass" data-nav="Links">
         <div class="section-head">
           <h2>Essential Links</h2>
           <span class="section-sub">Safety, stay &amp; language</span>
@@ -248,7 +249,7 @@
     </main>
 
     <!-- ============ MAP ============ -->
-    <section class="map-panel glass">
+    <section class="map-panel glass" data-nav="Map">
       <div class="section-head map-head">
         <div>
           <h2>Pin a location</h2>
@@ -270,6 +271,6 @@
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
           integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-  <script src="app.js?v=20260714"></script>
+  <script src="app.js?v=20260714b"></script>
 </body>
 </html>

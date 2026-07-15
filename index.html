@@ -9,7 +9,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
         integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-  <link rel="stylesheet" href="styles.css?v=20260714c" />
+  <link rel="stylesheet" href="styles.css?v=20260714d" />
 </head>
 <body>
   <div class="app" id="app">
@@ -74,6 +74,10 @@
             <div class="hero-icon" id="heroIcon"></div>
             <div class="hero-temp">
               <span class="temp-value" id="tempValue">--</span><span class="temp-unit">°</span>
+            </div>
+            <span class="hero-sep" id="heroSep" hidden></span>
+            <div class="hero-clock" id="heroClock" hidden>
+              <span class="temp-value" id="heroTime">--:--</span><span class="temp-unit hero-ampm" id="heroAmpm"></span>
             </div>
           </div>
           <div class="hero-cond" id="heroCond">—</div>
@@ -276,6 +280,6 @@
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
           integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-  <script src="app.js?v=20260714c"></script>
+  <script src="app.js?v=20260714d"></script>
 </body>
 </html>

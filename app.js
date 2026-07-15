@@ -71,6 +71,7 @@ const el = {
   heroLoading: $('heroLoading'), heroContent: $('heroContent'),
   placeName: $('placeName'), placeMeta: $('placeMeta'),
   heroIcon: $('heroIcon'), tempValue: $('tempValue'), heroCond: $('heroCond'),
+  heroClock: $('heroClock'), heroTime: $('heroTime'), heroAmpm: $('heroAmpm'), heroSep: $('heroSep'),
   tempHi: $('tempHi'), tempLo: $('tempLo'), feelsLike: $('feelsLike'), stats: $('stats'),
   hourly: $('hourly'), hourlySub: $('hourlySub'), daily: $('daily'),
   searchForm: $('searchForm'), searchInput: $('searchInput'), suggestions: $('suggestions'),
@@ -318,6 +319,11 @@ function renderCurrent(place, data) {
   el.placeMeta.textContent = [place.admin, place.country].filter(Boolean).join(', ') || `${place.lat.toFixed(2)}, ${place.lon.toFixed(2)}`;
   el.heroIcon.innerHTML = icon(iconKey(c.weather_code), night);
   el.tempValue.textContent = round(c.temperature_2m);
+  // Timezone may arrive with the forecast (Open-Meteo) — capture it, else look it up.
+  if (data.timezone && !place.tz) place.tz = data.timezone;
+  if (data.utc_offset_seconds != null && place.offset == null) place.offset = data.utc_offset_seconds;
+  updateHeroTime();
+  ensureHeroTz(place);
   const precip = c.precipitation ?? 0;
   el.heroCond.innerHTML = `${describe(c.weather_code)}${precip > 0 ? ` <span class="precip-badge">💧 ${precip} mm/h</span>` : ''}`;
   el.tempHi.textContent = `H:${round(d.temperature_2m_max[0])}°`;
@@ -412,6 +418,51 @@ function cityLocalTime(c) {
   const d = new Date(Date.now() + offsetSec * 1000);
   const h = d.getUTCHours(), m = d.getUTCMinutes();
   return `${h % 12 === 0 ? 12 : h % 12}:${String(m).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`;
+}
+
+/* Local wall-clock for a place, split into a big "H:MM" and an "AM/PM" suffix.
+   Prefers the IANA tz (DST-accurate), then a stored UTC offset, then longitude. */
+function placeLocalTimeParts(c) {
+  let h = null, m = 0;
+  if (c.tz) {
+    try {
+      const s = new Date().toLocaleTimeString('en-GB', { timeZone: c.tz, hour12: false, hour: '2-digit', minute: '2-digit' });
+      [h, m] = s.split(':').map(Number);
+    } catch { h = null; }
+  }
+  if (h == null) {
+    const offsetSec = c.offset != null ? c.offset : Math.round((c.lon || 0) / 15) * 3600;
+    const d = new Date(Date.now() + offsetSec * 1000);
+    h = d.getUTCHours(); m = d.getUTCMinutes();
+  }
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return { time: `${h12}:${String(m).padStart(2, '0')}`, ampm };
+}
+
+/* Repaint the hero clock beside the temperature from the current place. */
+function updateHeroTime() {
+  if (!el.heroTime || !state.current) return;
+  const { time, ampm } = placeLocalTimeParts(state.current);
+  el.heroTime.textContent = time;
+  el.heroAmpm.textContent = ampm;
+  el.heroClock.hidden = false;
+  el.heroSep.hidden = false;
+}
+
+/* Upgrade a place to a DST-accurate IANA timezone in the background (keyless),
+   falling back silently to the longitude estimate if the lookup is unavailable. */
+async function ensureHeroTz(place) {
+  if (place.tz) return;
+  try {
+    const r = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${place.lat}&longitude=${place.lon}&current=temperature_2m&timezone=auto`);
+    if (!r.ok) return;
+    const j = await r.json();
+    if (state.current !== place) return; // user moved on
+    if (j.timezone) place.tz = j.timezone;
+    if (j.utc_offset_seconds != null) place.offset = j.utc_offset_seconds;
+    updateHeroTime();
+  } catch { /* keep the longitude fallback already shown */ }
 }
 
 /* City's current local hour (0–24), from its IANA tz if known, else longitude/offset. */
@@ -2883,7 +2934,7 @@ function boot() {
   initMap();
   useMyLocation();
   if (state.cities.length) refreshSavedTemps();
-  setInterval(() => { if (state.cities.length) renderSaved(); }, 60000); // keep city clocks current
+  setInterval(() => { if (state.cities.length) renderSaved(); updateHeroTime(); }, 60000); // keep clocks current
   spotifyHandleRedirect().then(renderSpotify);
 }
 boot();

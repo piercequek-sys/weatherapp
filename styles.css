@@ -229,11 +229,14 @@ body {
   cursor: default;
 }
 
-.hero-main { display: flex; align-items: center; gap: 10px; margin-top: 18px; }
+.hero-main { display: flex; align-items: center; gap: 10px; margin-top: 18px; flex-wrap: wrap; }
 .hero-icon { width: 108px; height: 108px; flex-shrink: 0; filter: drop-shadow(0 10px 20px rgba(0,0,0,0.3)); }
 .hero-temp { display: flex; align-items: flex-start; line-height: 0.9; }
 .temp-value { font-size: 92px; font-weight: 300; letter-spacing: -0.05em; }
 .temp-unit { font-size: 40px; font-weight: 300; margin-top: 10px; color: var(--muted); }
+.hero-sep { width: 2px; align-self: stretch; margin: 8px 8px; border-radius: 2px; background: var(--stroke); }
+.hero-clock { display: flex; align-items: flex-start; line-height: 0.9; }
+.hero-ampm { margin-left: 4px; }
 
 .hero-cond { font-size: 19px; font-weight: 500; margin-top: 4px; }
 .hero-range { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--muted); margin-top: 8px; }

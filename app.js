@@ -2899,28 +2899,39 @@ function buildSectionNav() {
   });
   // Highlight the section nearest the top of the viewport as you scroll.
   // Skip sticky sections (e.g. the desktop map) — their top never scrolls past.
+  // Perf: the sticky-position check is cached (only re-run on resize) instead of
+  // calling getComputedStyle for every section on every scroll frame, and the DOM
+  // is only touched when the active section actually changes — repeatedly toggling
+  // classes / scrollIntoView every frame is what made mobile scrolling stutter.
+  let spy = secs;
+  const recomputeSpy = () => { spy = secs.filter((s) => getComputedStyle(s).position !== 'sticky'); };
+  recomputeSpy();
+
+  let activeSec = null;
   let ticking = false;
-  const onScroll = () => {
-    if (ticking) return;
-    ticking = true;
-    requestAnimationFrame(() => {
-      const cut = 90; // just below the sticky nav
-      const spy = secs.filter((s) => getComputedStyle(s).position !== 'sticky');
-      let current = spy[0];
-      for (const sec of spy) {
-        if (sec.getBoundingClientRect().top <= cut) current = sec; else break;
-      }
-      links.forEach((l) => l.classList.remove('active'));
-      const active = links.get(current);
-      if (active) {
-        active.classList.add('active');
-        active.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-      }
-      ticking = false;
-    });
+  const sync = () => {
+    ticking = false;
+    const cut = 90; // just below the sticky nav
+    let current = spy[0];
+    for (const sec of spy) {
+      if (sec.getBoundingClientRect().top <= cut) current = sec; else break;
+    }
+    if (current === activeSec) return; // nothing to do — avoids per-frame layout work
+    activeSec = current;
+    const active = links.get(current);
+    links.forEach((l) => l.classList.toggle('active', l === active));
+    if (active) {
+      // Keep the active pill visible without smooth-scroll fighting the page scroll.
+      const navBox = nav.getBoundingClientRect();
+      const box = active.getBoundingClientRect();
+      if (box.left < navBox.left) nav.scrollLeft -= (navBox.left - box.left) + 16;
+      else if (box.right > navBox.right) nav.scrollLeft += (box.right - navBox.right) + 16;
+    }
   };
+  const onScroll = () => { if (!ticking) { ticking = true; requestAnimationFrame(sync); } };
   window.addEventListener('scroll', onScroll, { passive: true });
-  onScroll();
+  window.addEventListener('resize', () => { recomputeSpy(); activeSec = null; sync(); }, { passive: true });
+  sync();
 }
 
 function boot() {

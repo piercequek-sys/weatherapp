@@ -84,6 +84,8 @@ const el = {
   linksBody: $('linksBody'), newsBody: $('newsBody'), spotifyAccount: $('spotifyAccount'),
   hotelCity: $('hotelCity'), hotelName: $('hotelName'), hotelRoom: $('hotelRoom'), hotelAdd: $('hotelAdd'), hotelList: $('hotelList'),
   workdayBody: $('workdayBody'), packingBody: $('packingBody'), essentialsBody: $('essentialsBody'), heroAqi: $('heroAqi'),
+  installBtn: $('installBtn'), offlineNote: $('offlineNote'),
+  tripBody: $('tripBody'), phrasesBody: $('phrasesBody'), holidaysBody: $('holidaysBody'),
   expMerchant: $('expMerchant'), expAmount: $('expAmount'), expCur: $('expCur'), expAdd: $('expAdd'),
   expReceipt: $('expReceipt'), expStatus: $('expStatus'), expTotal: $('expTotal'), expList: $('expList'), expExport: $('expExport'),
 };
@@ -1891,6 +1893,9 @@ async function loadLocation(place, { moveMap = true } = {}) {
   if (moveMap && state.map) setPin(place.lat, place.lon, { fly: true });
 
   renderTravel(place); // independent of weather fetch; runs in parallel
+  renderTrip(place);
+  renderPhrasebook(place);
+  renderHolidays(place);
   renderWorkdayOffice(place);
   renderEssentials(place);
   updateAirQuality(place);
@@ -2485,7 +2490,24 @@ function renderPacking(data, place) {
   if (!ESSENTIALS[cc] && place.country) cc = NAME_TO_CC[place.country.toLowerCase()] || cc;
   if (ESSENTIALS[cc]) items.push(['🔌', `Power adapter — ${ESSENTIALS[cc].plug}, ${ESSENTIALS[cc].volt}`, 'Matches this country’s sockets']);
   items.push(['🧳', 'Passport, cards & any medication', 'Trip essentials']);
-  el.packingBody.innerHTML = `<div class="cycling-note">Packing for ${place.name} · next 7 days</div>${items.map(([ic, t, sub]) => `<div class="pack-item"><span class="pack-ic">${ic}</span><div class="pack-info"><div class="pack-t">${t}</div><div class="pack-sub">${sub}</div></div></div>`).join('')}`;
+  const key = cityKey(place);
+  const store = packStore[key] || { checked: {}, custom: [] };
+  (store.custom || []).forEach((c) => items.push(['📝', c, 'Added by you', true]));
+  const rows = items.map(([ic, t, sub, custom]) => {
+    const done = !!store.checked[t];
+    return `<div class="pack-item${done ? ' done' : ''}" data-label="${escHtml(t)}">
+      <span class="pack-check">${done ? '✓' : ''}</span>
+      <span class="pack-ic">${ic}</span>
+      <div class="pack-info"><div class="pack-t">${escHtml(t)}</div><div class="pack-sub">${escHtml(sub)}</div></div>
+      ${custom ? `<button class="pack-del" data-pack-del="${escHtml(t)}" title="Remove">✕</button>` : ''}
+    </div>`;
+  }).join('');
+  const total = items.length; const packed = items.filter(([, t]) => store.checked[t]).length;
+  el.packingBody.innerHTML = `<div class="cycling-note">Packing for ${escHtml(place.name)} · ${packed}/${total} packed</div>${rows}
+    <div class="pack-add-row">
+      <input id="packAdd" class="hotel-in" placeholder="Add your own item…" autocomplete="off">
+      <button class="hotel-add" data-pack-add>Add</button>
+    </div>`;
 }
 
 /* ============================================================
@@ -2934,7 +2956,228 @@ function buildSectionNav() {
   sync();
 }
 
+/* ============================================================
+   PWA — installable + offline (service worker registered from sw.js)
+   ============================================================ */
+let deferredInstallPrompt = null;
+function initPWA() {
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
+  }
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredInstallPrompt = e;
+    if (el.installBtn) el.installBtn.hidden = false;
+  });
+  window.addEventListener('appinstalled', () => { if (el.installBtn) el.installBtn.hidden = true; });
+  if (el.installBtn) el.installBtn.addEventListener('click', async () => {
+    if (!deferredInstallPrompt) { toast('Use your browser menu → “Add to Home Screen”'); return; }
+    deferredInstallPrompt.prompt();
+    await deferredInstallPrompt.userChoice;
+    deferredInstallPrompt = null;
+    el.installBtn.hidden = true;
+  });
+  const setOnline = () => { if (el.offlineNote) el.offlineNote.hidden = navigator.onLine; };
+  window.addEventListener('online', setOnline);
+  window.addEventListener('offline', setOnline);
+  setOnline();
+}
+
+/* ============================================================
+   Trip Planner — arrival/departure dates + countdown, saved locally
+   ============================================================ */
+const TRIP_KEY = 'trips.v1';
+let trips = {};
+function loadTrips() { try { trips = JSON.parse(localStorage.getItem(TRIP_KEY)) || {}; } catch { trips = {}; } }
+function saveTrips() { localStorage.setItem(TRIP_KEY, JSON.stringify(trips)); }
+const daysBetween = (a, b) => Math.round((a - b) / 86400000);
+function tripCountdown(t) {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const s = t.start ? new Date(t.start + 'T00:00:00') : null;
+  const e = t.end ? new Date(t.end + 'T00:00:00') : null;
+  if (s && today < s) { const d = daysBetween(s, today); return { cls: 'soon', txt: d === 1 ? 'Tomorrow!' : `In ${d} days` }; }
+  if (s && e && today >= s && today <= e) { return { cls: 'now', txt: `Day ${daysBetween(today, s) + 1} of ${daysBetween(e, s) + 1} — you’re there!` }; }
+  if (s && !e && today.getTime() === s.getTime()) return { cls: 'now', txt: 'Today!' };
+  if (e && today > e) return { cls: 'past', txt: 'Trip ended' };
+  if (s && today.getTime() === s.getTime()) return { cls: 'now', txt: 'Today!' };
+  return null;
+}
+function renderTrip(place) {
+  if (!el.tripBody) return;
+  const key = cityKey(place);
+  const t = trips[key] || {};
+  const cd = tripCountdown(t);
+  const others = Object.entries(trips)
+    .filter(([k, v]) => k !== key && v.start)
+    .map(([k, v]) => ({ k, v, cd: tripCountdown(v) }))
+    .filter((x) => x.cd && x.cd.cls !== 'past')
+    .sort((a, b) => new Date(a.v.start) - new Date(b.v.start));
+  el.tripBody.innerHTML = `
+    <div class="trip-city">🗓️ ${escHtml(place.name)}</div>
+    <div class="trip-form">
+      <label class="trip-field"><span>Arrive</span><input type="date" id="tripStart" class="trip-in" value="${t.start || ''}"></label>
+      <label class="trip-field"><span>Depart</span><input type="date" id="tripEnd" class="trip-in" value="${t.end || ''}"></label>
+      <button class="hotel-add" data-trip="save">Save</button>
+      ${(t.start || t.end) ? '<button class="trip-clear" data-trip="clear" title="Clear trip dates">✕</button>' : ''}
+    </div>
+    ${cd ? `<div class="trip-countdown ${cd.cls}">${cd.txt}${t.start ? ` · ${new Date(t.start + 'T00:00:00').toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}${t.end ? ' – ' + new Date(t.end + 'T00:00:00').toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) : ''}` : ''}</div>` : '<div class="trip-hint">Add your dates to see a countdown.</div>'}
+    ${others.length ? `<div class="trip-others"><div class="trip-others-h">Your other trips</div>${others.map((x) => `<div class="trip-other"><span>${escHtml(x.v.name || 'Trip')}</span><span class="trip-other-cd ${x.cd.cls}">${x.cd.txt}</span></div>`).join('')}</div>` : ''}`;
+}
+if (el.tripBody) {
+  el.tripBody.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-trip]');
+    if (!btn || !state.current) return;
+    const key = cityKey(state.current);
+    if (btn.dataset.trip === 'save') {
+      const start = document.getElementById('tripStart').value;
+      const end = document.getElementById('tripEnd').value;
+      if (!start && !end) { toast('Pick at least an arrival date'); return; }
+      if (start && end && end < start) { toast('Departure is before arrival'); return; }
+      trips[key] = { start, end, name: state.current.name };
+      saveTrips(); renderTrip(state.current); toast('Trip saved');
+    } else if (btn.dataset.trip === 'clear') {
+      delete trips[key]; saveTrips(); renderTrip(state.current);
+    }
+  });
+}
+
+/* ============================================================
+   Phrasebook — curated essential phrases by language (offline)
+   ============================================================ */
+const PHRASES = {
+  fra: { name: 'French', list: [['Hello', 'Bonjour', 'bon-ZHOOR'], ['Thank you', 'Merci', 'mair-SEE'], ['Please', 'S’il vous plaît', 'seel voo PLEH'], ['Yes / No', 'Oui / Non', 'wee / nohn'], ['Excuse me', 'Excusez-moi', 'ehks-kew-zay MWAH'], ['Do you speak English?', 'Parlez-vous anglais ?', 'par-lay VOO ahn-GLEH'], ['How much is it?', 'C’est combien ?', 'say kohm-BYAN'], ['Where is the toilet?', 'Où sont les toilettes ?', 'oo sohn lay twa-LET'], ['Help!', 'Au secours !', 'oh suh-KOOR'], ['I don’t understand', 'Je ne comprends pas', 'zhuh nuh kohm-prahn PAH']] },
+  spa: { name: 'Spanish', list: [['Hello', 'Hola', 'OH-lah'], ['Thank you', 'Gracias', 'GRAH-syahs'], ['Please', 'Por favor', 'por fah-VOR'], ['Yes / No', 'Sí / No', 'see / noh'], ['Excuse me', 'Perdón', 'pair-DOHN'], ['Do you speak English?', '¿Habla inglés?', 'AH-blah een-GLESS'], ['How much is it?', '¿Cuánto cuesta?', 'KWAN-toh KWES-tah'], ['Where is the toilet?', '¿Dónde está el baño?', 'DON-deh es-TAH el BAH-nyoh'], ['Help!', '¡Ayuda!', 'ah-YOO-dah'], ['I don’t understand', 'No entiendo', 'noh en-TYEN-doh']] },
+  deu: { name: 'German', list: [['Hello', 'Hallo', 'HAH-loh'], ['Thank you', 'Danke', 'DAHN-kuh'], ['Please', 'Bitte', 'BIT-tuh'], ['Yes / No', 'Ja / Nein', 'yah / nine'], ['Excuse me', 'Entschuldigung', 'ent-SHOOL-di-goong'], ['Do you speak English?', 'Sprechen Sie Englisch?', 'SHPREH-khen zee ENG-lish'], ['How much is it?', 'Wie viel kostet das?', 'vee feel KOS-tet dahs'], ['Where is the toilet?', 'Wo ist die Toilette?', 'voh ist dee twa-LET-tuh'], ['Help!', 'Hilfe!', 'HIL-fuh'], ['I don’t understand', 'Ich verstehe nicht', 'ikh fair-SHTAY-uh nikht']] },
+  ita: { name: 'Italian', list: [['Hello', 'Ciao', 'chow'], ['Thank you', 'Grazie', 'GRAH-tsyeh'], ['Please', 'Per favore', 'pair fah-VOH-reh'], ['Yes / No', 'Sì / No', 'see / noh'], ['Excuse me', 'Mi scusi', 'mee SKOO-zee'], ['Do you speak English?', 'Parla inglese?', 'PAR-lah een-GLEH-zeh'], ['How much is it?', 'Quanto costa?', 'KWAN-toh KOS-tah'], ['Where is the toilet?', 'Dov’è il bagno?', 'doh-VEH eel BAH-nyoh'], ['Help!', 'Aiuto!', 'ah-YOO-toh'], ['I don’t understand', 'Non capisco', 'non kah-PEES-koh']] },
+  jpn: { name: 'Japanese', list: [['Hello', 'こんにちは', 'kon-nichi-wa'], ['Thank you', 'ありがとう', 'a-ri-ga-toh'], ['Please', 'お願いします', 'o-ne-gai-shi-mas'], ['Yes / No', 'はい / いいえ', 'hai / iie'], ['Excuse me', 'すみません', 'su-mi-ma-sen'], ['Do you speak English?', '英語を話せますか？', 'ei-go o hana-se-mas-ka'], ['How much is it?', 'いくらですか？', 'i-ku-ra des-ka'], ['Where is the toilet?', 'トイレはどこですか？', 'toi-re wa do-ko des-ka'], ['Help!', '助けて！', 'tas-ke-te'], ['I don’t understand', 'わかりません', 'wa-ka-ri-ma-sen']] },
+  zho: { name: 'Mandarin Chinese', list: [['Hello', '你好', 'nǐ hǎo (nee how)'], ['Thank you', '谢谢', 'xièxie (SYEH-syeh)'], ['Please', '请', 'qǐng (ching)'], ['Yes / No', '是 / 不是', 'shì / bù shì (shr / boo shr)'], ['Excuse me', '对不起', 'duìbuqǐ (dway-boo-chee)'], ['Do you speak English?', '你会说英语吗？', 'nǐ huì shuō yīngyǔ ma'], ['How much is it?', '多少钱？', 'duōshǎo qián (dwor-shaow chyen)'], ['Where is the toilet?', '厕所在哪里？', 'cèsuǒ zài nǎlǐ'], ['Help!', '救命！', 'jiùmìng (jyoh-ming)'], ['I don’t understand', '我不明白', 'wǒ bù míngbái']] },
+  tha: { name: 'Thai', list: [['Hello', 'สวัสดี', 'sa-wat-dee'], ['Thank you', 'ขอบคุณ', 'khop-khun'], ['Please', 'กรุณา', 'ga-ru-naa'], ['Yes / No', 'ใช่ / ไม่', 'chai / mai'], ['Excuse me', 'ขอโทษ', 'kho-thot'], ['Do you speak English?', 'คุณพูดภาษาอังกฤษได้ไหม', 'khun phood pa-sa ang-krit dai mai'], ['How much is it?', 'เท่าไหร่', 'thao-rai'], ['Where is the toilet?', 'ห้องน้ำอยู่ที่ไหน', 'hong-nam yoo tee-nai'], ['Help!', 'ช่วยด้วย', 'chuay duay'], ['I don’t understand', 'ไม่เข้าใจ', 'mai khao-jai']] },
+  kor: { name: 'Korean', list: [['Hello', '안녕하세요', 'an-nyeong-ha-se-yo'], ['Thank you', '감사합니다', 'gam-sa-ham-ni-da'], ['Please', '주세요', 'ju-se-yo'], ['Yes / No', '네 / 아니요', 'ne / a-ni-yo'], ['Excuse me', '실례합니다', 'sil-lye-ham-ni-da'], ['Do you speak English?', '영어 하세요?', 'yeong-eo ha-se-yo'], ['How much is it?', '얼마예요?', 'eol-ma-ye-yo'], ['Where is the toilet?', '화장실이 어디예요?', 'hwa-jang-sil-i eo-di-ye-yo'], ['Help!', '도와주세요!', 'do-wa-ju-se-yo'], ['I don’t understand', '이해 못 해요', 'i-hae mot hae-yo']] },
+  vie: { name: 'Vietnamese', list: [['Hello', 'Xin chào', 'sin chow'], ['Thank you', 'Cảm ơn', 'kahm uhn'], ['Please', 'Làm ơn', 'lam uhn'], ['Yes / No', 'Vâng / Không', 'vung / khom'], ['Excuse me', 'Xin lỗi', 'sin loy'], ['Do you speak English?', 'Bạn nói tiếng Anh không?', 'ban noy tyeng ang khom'], ['How much is it?', 'Bao nhiêu tiền?', 'bao nyew tyen'], ['Where is the toilet?', 'Nhà vệ sinh ở đâu?', 'nya ve sing uh dow'], ['Help!', 'Cứu với!', 'kuu voy'], ['I don’t understand', 'Tôi không hiểu', 'toy khom hyew']] },
+  ind: { name: 'Indonesian', list: [['Hello', 'Halo', 'HAH-loh'], ['Thank you', 'Terima kasih', 'teh-REE-mah KAH-see'], ['Please', 'Tolong', 'TOH-long'], ['Yes / No', 'Ya / Tidak', 'yah / TEE-dah'], ['Excuse me', 'Permisi', 'pair-MEE-see'], ['Do you speak English?', 'Bisa bahasa Inggris?', 'BEE-sah bah-HAH-sah ING-grees'], ['How much is it?', 'Berapa harganya?', 'buh-RAH-pah har-GAH-nyah'], ['Where is the toilet?', 'Di mana toilet?', 'dee MAH-nah TOY-let'], ['Help!', 'Tolong!', 'TOH-long'], ['I don’t understand', 'Saya tidak mengerti', 'SAH-yah TEE-dah muhng-ER-tee']] },
+  msa: { name: 'Malay', list: [['Hello', 'Helo', 'HEH-loh'], ['Thank you', 'Terima kasih', 'tuh-REE-mah KAH-seh'], ['Please', 'Tolong', 'TOH-long'], ['Yes / No', 'Ya / Tidak', 'yah / TEE-dah'], ['Excuse me', 'Maafkan saya', 'mah-AF-kan SAH-yah'], ['Do you speak English?', 'Boleh cakap Inggeris?', 'BOH-leh CHAH-kap ING-guh-ris'], ['How much is it?', 'Berapa harganya?', 'buh-RAH-pah har-GAH-nyah'], ['Where is the toilet?', 'Di mana tandas?', 'dee MAH-nah TAN-das'], ['Help!', 'Tolong!', 'TOH-long'], ['I don’t understand', 'Saya tidak faham', 'SAH-yah TEE-dah FAH-ham']] },
+  ara: { name: 'Arabic', list: [['Hello', 'مرحبا', 'MAR-ha-ban'], ['Thank you', 'شكرا', 'SHUK-ran'], ['Please', 'من فضلك', 'min FAD-lak'], ['Yes / No', 'نعم / لا', 'na-‘am / laa'], ['Excuse me', 'عفوا', '‘af-wan'], ['Do you speak English?', 'هل تتكلم الإنجليزية؟', 'hal ta-ta-KAL-lam al-in-gi-LEE-zee-ya'], ['How much is it?', 'بكم هذا؟', 'bi-KAM haa-za'], ['Where is the toilet?', 'أين الحمام؟', 'ay-na al-ham-MAAM'], ['Help!', 'النجدة!', 'an-NAJ-da'], ['I don’t understand', 'لا أفهم', 'laa AF-ham']] },
+  nld: { name: 'Dutch', list: [['Hello', 'Hallo', 'HAH-loh'], ['Thank you', 'Dank je', 'dahnk yuh'], ['Please', 'Alsjeblieft', 'ahls-yuh-BLEEFT'], ['Yes / No', 'Ja / Nee', 'yah / nay'], ['Excuse me', 'Pardon', 'par-DON'], ['Do you speak English?', 'Spreekt u Engels?', 'spraykt oo ENG-uls'], ['How much is it?', 'Hoeveel kost het?', 'HOO-vale kost het'], ['Where is the toilet?', 'Waar is het toilet?', 'vahr is het twa-LET'], ['Help!', 'Help!', 'help'], ['I don’t understand', 'Ik begrijp het niet', 'ik buh-GRAYP het neet']] },
+  por: { name: 'Portuguese', list: [['Hello', 'Olá', 'oh-LAH'], ['Thank you', 'Obrigado', 'oh-bree-GAH-doo'], ['Please', 'Por favor', 'poor fah-VOR'], ['Yes / No', 'Sim / Não', 'seeng / nowng'], ['Excuse me', 'Com licença', 'kong lee-SEN-sah'], ['Do you speak English?', 'Fala inglês?', 'FAH-lah een-GLESS'], ['How much is it?', 'Quanto custa?', 'KWAN-too KOOS-tah'], ['Where is the toilet?', 'Onde é a casa de banho?', 'ON-jee eh ah KAH-zah jee BAH-nyoo'], ['Help!', 'Socorro!', 'soh-KOH-hoo'], ['I don’t understand', 'Não percebo', 'nowng pair-SEH-boo']] },
+  hin: { name: 'Hindi', list: [['Hello', 'नमस्ते', 'na-mas-TE'], ['Thank you', 'धन्यवाद', 'DHAN-ya-vaad'], ['Please', 'कृपया', 'KRIP-ya'], ['Yes / No', 'हाँ / नहीं', 'haan / na-HEEN'], ['Excuse me', 'माफ़ कीजिए', 'maaf KEE-ji-ye'], ['Do you speak English?', 'क्या आप अंग्रेज़ी बोलते हैं?', 'kya aap ang-REY-zee bol-te hain'], ['How much is it?', 'यह कितने का है?', 'yeh kit-ne ka hai'], ['Where is the toilet?', 'शौचालय कहाँ है?', 'shau-cha-lay ka-HAAN hai'], ['Help!', 'मदद कीजिए!', 'ma-dad KEE-ji-ye'], ['I don’t understand', 'मुझे समझ नहीं आया', 'mu-jhe sa-majh na-HEEN aa-ya']] },
+};
+function placeCC(place) {
+  let cc = (place.cc || '').toUpperCase();
+  if (!COUNTRY_INFO[cc] && place.country) cc = NAME_TO_CC[place.country.toLowerCase()] || cc;
+  return cc;
+}
+function renderPhrasebook(place) {
+  if (!el.phrasesBody) return;
+  const cc = placeCC(place);
+  const lang = COUNTRY_INFO[cc] && COUNTRY_INFO[cc][1];
+  const country = (COUNTRY_INFO[cc] && COUNTRY_INFO[cc][3]) || place.country || place.name;
+  if (lang === 'eng') {
+    el.phrasesBody.innerHTML = `<div class="cycling-empty"><div class="cycling-empty-ic">👍</div><div><strong>English is widely spoken in ${escHtml(country)}</strong><span>You’re set — a smile and a “please/thank you” still go a long way.</span></div></div>`;
+    return;
+  }
+  const pb = lang && PHRASES[lang];
+  if (!pb) {
+    const q = encodeURIComponent(`${country} language useful phrases`);
+    el.phrasesBody.innerHTML = `<div class="cycling-empty"><div class="cycling-empty-ic">🗣️</div><div><strong>No phrasebook for ${escHtml(country)} yet</strong><span><a href="https://www.google.com/search?q=${q}" target="_blank" rel="noopener">Search useful phrases ↗</a></span></div></div>`;
+    return;
+  }
+  const rows = pb.list.map(([en, loc, pron]) => `
+    <div class="phrase">
+      <div class="phrase-en">${escHtml(en)}</div>
+      <div class="phrase-loc" dir="auto">${escHtml(loc)}</div>
+      <div class="phrase-pron">${escHtml(pron)}</div>
+    </div>`).join('');
+  el.phrasesBody.innerHTML = `<div class="cycling-note">${pb.name} · ${escHtml(country)}</div><div class="phrase-grid">${rows}</div>`;
+}
+
+/* ============================================================
+   Public Holidays — Nager.Date (keyless, CORS-enabled)
+   ============================================================ */
+async function fetchHolidays(cc, year) {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), 5000);
+  try {
+    const r = await fetch(`https://date.nager.at/api/v3/PublicHolidays/${year}/${cc}`, { signal: ctl.signal });
+    if (!r.ok) throw new Error('nager ' + r.status);
+    return await r.json();
+  } finally { clearTimeout(timer); }
+}
+let holidayToken = 0;
+async function renderHolidays(place) {
+  if (!el.holidaysBody) return;
+  const token = ++holidayToken;
+  const cc = placeCC(place);
+  const country = (COUNTRY_INFO[cc] && COUNTRY_INFO[cc][3]) || place.country || place.name;
+  if (!/^[A-Z]{2}$/.test(cc)) {
+    el.holidaysBody.innerHTML = `<div class="cycling-empty"><div class="cycling-empty-ic">🎉</div><div><strong>Holidays unavailable</strong><span>Couldn’t determine the country for ${escHtml(place.name)}.</span></div></div>`;
+    return;
+  }
+  el.holidaysBody.innerHTML = '<div class="cycling-empty"><div class="spinner"></div><div><strong>Loading holidays…</strong></div></div>';
+  const yr = new Date().getFullYear();
+  try {
+    const batches = await Promise.allSettled([fetchHolidays(cc, yr), fetchHolidays(cc, yr + 1)]);
+    if (token !== holidayToken) return;
+    const all = batches.flatMap((b) => (b.status === 'fulfilled' && Array.isArray(b.value) ? b.value : []));
+    if (batches.every((b) => b.status === 'rejected')) throw new Error('all failed');
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const upcoming = all
+      .map((h) => ({ ...h, d: new Date(h.date + 'T00:00:00') }))
+      .filter((h) => h.d >= today)
+      .sort((a, b) => a.d - b.d)
+      .slice(0, 6);
+    if (!upcoming.length) {
+      el.holidaysBody.innerHTML = `<div class="cycling-empty"><div class="cycling-empty-ic">🎉</div><div><strong>No upcoming public holidays listed</strong><span>for ${escHtml(country)}.</span></div></div>`;
+      return;
+    }
+    const items = upcoming.map((h) => {
+      const days = daysBetween(h.d, today);
+      const when = days === 0 ? 'Today' : days === 1 ? 'Tomorrow' : `in ${days} days`;
+      const names = h.localName && h.name && h.localName !== h.name ? `${escHtml(h.localName)} <span class="hol-en">· ${escHtml(h.name)}</span>` : escHtml(h.localName || h.name);
+      return `<div class="ride">
+        <div class="ride-date"><span class="ride-dow">${DOW_SHORT[h.d.getDay()]}</span><span class="ride-num">${h.d.getDate()}</span><span class="ride-mon">${h.d.toLocaleDateString(undefined, { month: 'short' })}</span></div>
+        <div class="ride-info"><div class="ride-name">${names}</div><div class="ride-meta">${when}</div></div>
+      </div>`;
+    }).join('');
+    el.holidaysBody.innerHTML = `<div class="cycling-note">Public holidays · ${escHtml(country)}</div>${items}`;
+  } catch {
+    if (token !== holidayToken) return;
+    el.holidaysBody.innerHTML = `<div class="cycling-empty"><div class="cycling-empty-ic">🎉</div><div><strong>Couldn’t load holidays</strong><span>${navigator.onLine ? 'Not available for ' + escHtml(country) + '.' : 'You’re offline.'}</span></div></div>`;
+  }
+}
+
+/* ============================================================
+   Packing checklist persistence (ticks + your own items)
+   ============================================================ */
+const PACK_KEY = 'packing.v1';
+let packStore = {};
+function loadPack() { try { packStore = JSON.parse(localStorage.getItem(PACK_KEY)) || {}; } catch { packStore = {}; } }
+function savePack() { localStorage.setItem(PACK_KEY, JSON.stringify(packStore)); }
+if (el.packingBody) {
+  el.packingBody.addEventListener('click', (e) => {
+    if (!state.current) return;
+    const key = cityKey(state.current);
+    packStore[key] = packStore[key] || { checked: {}, custom: [] };
+    const row = e.target.closest('.pack-item[data-label]');
+    const del = e.target.closest('[data-pack-del]');
+    const add = e.target.closest('[data-pack-add]');
+    if (del) { packStore[key].custom = (packStore[key].custom || []).filter((c) => c !== del.dataset.packDel); delete packStore[key].checked[del.dataset.packDel]; savePack(); renderPacking(state.weather, state.current); return; }
+    if (add) {
+      const inp = document.getElementById('packAdd');
+      const v = (inp.value || '').trim();
+      if (!v) return;
+      packStore[key].custom = packStore[key].custom || [];
+      if (!packStore[key].custom.includes(v)) packStore[key].custom.push(v);
+      savePack(); renderPacking(state.weather, state.current); return;
+    }
+    if (row) { const l = row.dataset.label; packStore[key].checked[l] = !packStore[key].checked[l]; savePack(); row.classList.toggle('done', packStore[key].checked[l]); const cb = row.querySelector('.pack-check'); if (cb) cb.textContent = packStore[key].checked[l] ? '✓' : ''; }
+  });
+  el.packingBody.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.id === 'packAdd') { e.preventDefault(); el.packingBody.querySelector('[data-pack-add]')?.click(); } });
+}
+
 function boot() {
+  initPWA();
+  loadTrips();
+  loadPack();
   buildSectionNav();
   loadCities();
   renderSaved();

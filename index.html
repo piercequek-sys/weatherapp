@@ -8,12 +8,21 @@
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
   <title>My Travel Pocket App</title>
+  <!-- PWA: installable + offline -->
+  <link rel="manifest" href="manifest.webmanifest" />
+  <meta name="theme-color" content="#150c30" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Travel Pocket" />
+  <link rel="apple-touch-icon" href="icon.svg" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
         integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-  <link rel="stylesheet" href="styles.css?v=20260714h" />
+  <link rel="stylesheet" href="styles.css?v=20260716" />
 </head>
 <body>
   <div class="app" id="app">
@@ -52,6 +61,14 @@
         </svg>
         Use my location
       </button>
+
+      <button class="install-btn" id="installBtn" hidden>
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 3v12M7 10l5 5 5-5M5 21h14" />
+        </svg>
+        Install app
+      </button>
+      <div class="offline-note" id="offlineNote" hidden>📴 Offline — showing saved data</div>
     </aside>
 
     <!-- ============ MAIN ============ -->
@@ -113,10 +130,18 @@
         <div class="daily" id="daily"></div>
       </section>
 
+      <section class="forecast glass" data-nav="Trip">
+        <div class="section-head">
+          <h2>Trip Planner <span class="cycling-brand">· ✈️</span></h2>
+          <span class="section-sub">Dates &amp; countdown · saved on this device</span>
+        </div>
+        <div class="trip-body" id="tripBody"></div>
+      </section>
+
       <section class="forecast glass" data-nav="Packing">
         <div class="section-head">
-          <h2>Packing Suggestions <span class="cycling-brand">· 🎒</span></h2>
-          <span class="section-sub">Based on the forecast</span>
+          <h2>Packing List <span class="cycling-brand">· 🎒</span></h2>
+          <span class="section-sub">Weather-aware · tick &amp; add your own</span>
         </div>
         <div class="cycling-body" id="packingBody"></div>
       </section>
@@ -140,6 +165,14 @@
           <span class="section-sub">Plugs, water, driving &amp; more</span>
         </div>
         <div class="cycling-body" id="essentialsBody"></div>
+      </section>
+
+      <section class="forecast glass" data-nav="Phrases">
+        <div class="section-head">
+          <h2>Phrasebook <span class="cycling-brand">· 🗣️</span></h2>
+          <span class="section-sub">Essential phrases in the local language</span>
+        </div>
+        <div class="cycling-body" id="phrasesBody"></div>
       </section>
 
       <section class="forecast glass" data-nav="Workday">
@@ -198,6 +231,14 @@
           <span class="section-sub">Current &amp; upcoming</span>
         </div>
         <div class="cycling-body" id="eventsBody"></div>
+      </section>
+
+      <section class="forecast glass" data-nav="Holidays">
+        <div class="section-head">
+          <h2>Public Holidays <span class="cycling-brand">· 🎉</span></h2>
+          <span class="section-sub">Upcoming — banks &amp; shops may close</span>
+        </div>
+        <div class="cycling-body" id="holidaysBody"></div>
       </section>
 
       <section class="forecast glass" data-nav="Transport">
@@ -284,6 +325,6 @@
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
           integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-  <script src="app.js?v=20260714h"></script>
+  <script src="app.js?v=20260716"></script>
 </body>
 </html>

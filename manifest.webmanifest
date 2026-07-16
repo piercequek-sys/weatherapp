@@ -1,0 +1,14 @@
+{
+  "name": "My Travel Pocket App",
+  "short_name": "Travel Pocket",
+  "description": "Weather, maps, and a full travel companion in your pocket — works offline.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#150c30",
+  "theme_color": "#150c30",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
